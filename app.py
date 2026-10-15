@@ -519,60 +519,45 @@ with col_plus:
         tab_ledger, tab_analytics, tab_settings, tab_guide = st.tabs(
     ["🛡️ 小金库流水", "📊 消费分析", "⚙️ 参数设置", "📖 使用说明"]
 )
-     with tab_ledger:
-            st.markdown(
-                f"""
-                <div style="background:#F5F5F7; border-radius:16px; padding:14px 16px; margin-bottom:12px;">
-                    <div style="font-size:11.5px; color:#86868B;">🥇 隐藏小金库可用余额</div>
-                    <div style="font-size:24px; font-weight:700; color:#1D1D1F; margin-top:2px;">¥ {vault_balance:,.2f}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
+        with tab_ledger:
+            st.markdown(f"#### 🛡️ 隐藏小金库: ¥{current_vault:.2f}")
+            st.caption(
+                f"专属舱位：{CURRENT_USER} · 初始 ¥{VAULT_INIT:.0f} · 历月累加"
+                f" {'+' if accumulated_rollover>=0 else ''}¥{accumulated_rollover:.1f}"
+                f" · 大件 -¥{vault_spent:.1f}"
             )
-            st.caption("最近账单流水（点击类别可直接修改，点击右侧 × 可删除）")
-            
-            if df_all.empty:
-                st.info("本月暂无消费记录，快记一笔吧！")
-            else:
-                valid_cats = ["餐饮", "交通", "购物", "娱乐", "居家", "数码", "医疗", "其他"]
-                
-                for _, row in df_all.head(20).iterrows():
-                    r_id = row["id"]
-                    edit_key = f"editing_{r_id}"
-                    
-                    if st.session_state.get(edit_key, False):
-                        e_col1, e_col2, e_col3 = st.columns([5, 3, 2])
-                        with e_col1:
-                            st.markdown(f"<div style='font-size:12.5px; padding-top:6px;'>{row['title']}</div>", unsafe_allow_html=True)
-                        with e_col2:
-                            current_cat_idx = valid_cats.index(row["category"]) if row["category"] in valid_cats else 7
-                            new_cat = st.selectbox("分类", valid_cats, index=current_cat_idx, key=f"sel_{r_id}", label_visibility="collapsed")
-                        with e_col3:
-                            if st.button("保存", key=f"save_{r_id}", use_container_width=True):
-                                c = conn.cursor()
-                                c.execute("UPDATE transactions SET category=? WHERE id=? AND user_id=?", (new_cat, r_id, CURRENT_USER))
-                                conn.commit()
-                                st.session_state[edit_key] = False
-                                st.rerun()
-                    else:
-                        r_col1, r_col2, r_col3 = st.columns([6.2, 2.6, 1.2])
-                        pool_tag = "🥇" if row["pool"] == "vault" else "⚪"
-                        with r_col1:
-                            st.markdown(
-                                f"<div style='font-size:13px; color:#1D1D1F; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>"
-                                f"{pool_tag} {row['title']} <span style='color:#1D1D1F; font-weight:600;'>¥{row['amount']:.2f}</span></div>",
-                                unsafe_allow_html=True,
-                            )
-                        with r_col2:
-                            if st.button(f"[{row['category']}]", key=f"cat_btn_{r_id}", use_container_width=True):
-                                st.session_state[edit_key] = True
-                                st.rerun()
-                        with r_col3:
-                            if st.button("×", key=f"del_{r_id}", use_container_width=True):
-                                c = conn.cursor()
-                                c.execute("DELETE FROM transactions WHERE id=? AND user_id=?", (r_id, CURRENT_USER))
-                                conn.commit()
-                                st.rerun()
+            st.markdown("---")
+            st.markdown(f"**📜 近期账单流水（{current_month_str}）**")
+            c.execute(
+                "SELECT id, date, title, amount, pool, category FROM transactions"
+                " WHERE user_id=? ORDER BY id DESC LIMIT 20",
+                (CURRENT_USER,),
+            )
+            rows = c.fetchall()
+            if not rows:
+                st.caption("暂无记录")
+            for tx_id, tx_date, tx_title, tx_amount, tx_pool, tx_cat in rows:
+                badge_html = render_category_badge(tx_cat or "其他", tx_pool)
+                r_col1, r_col2 = st.columns([8.8, 1.2])
+                with r_col1:
+                    st.markdown(
+                        "<div style='font-size:13.5px; color:#1D1D1F; white-space:nowrap;"
+                        " overflow:hidden; text-overflow:ellipsis; display:flex;"
+                        f" align-items:center; gap:6px;'><span style='color:#8E8E93; font-size:12px;'>{tx_date[5:]}</span>"
+                        f"<b>{tx_title}</b><span>¥{tx_amount:.1f}</span>{badge_html}</div>",
+                        unsafe_allow_html=True,
+                    )
+                with r_col2:
+                    if st.button("－", key=f"del_{tx_id}", type="secondary"):
+                        c.execute(
+                            "DELETE FROM transactions WHERE id=? AND user_id=?",
+                            (tx_id, CURRENT_USER),
+                        )
+                        conn.commit()
+                        st.session_state.last_toast = (
+                            f"🗑️ 已撤销：{tx_title} (¥{tx_amount:.1f} 已退回)"
+                        )
+                        st.rerun()
             st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
             if st.button(
                 "🗑️ 清空我的账单数据", type="primary", use_container_width=True
