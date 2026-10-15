@@ -22,6 +22,14 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# 注入高清 Apple 桌面图标（这里用高颜值纯白底深灰圆点的极简苹果风 SVG 作为桌面图标）
+st.markdown(
+    """
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='115' fill='%23FFFFFF'/><text x='50% ' y='53%' font-size='220' font-family='-apple-system, sans-serif' text-anchor='middle' dominant-baseline='middle' fill='%231D1D1F'>⚪</text></svg>">
+    """,
+    unsafe_allow_html=True,
+)
+
 st.markdown(
     """
 <style>
