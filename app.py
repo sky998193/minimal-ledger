@@ -1,379 +1,213 @@
-from datetime import datetime, timedelta, timezone
-import json
-import re
+import streamlit as st
 import sqlite3
-from openai import OpenAI
 import pandas as pd
 import plotly.express as px
-import streamlit as st
+import json
+import re
+from datetime import datetime, timedelta, timezone
+from openai import OpenAI
 import streamlit.components.v1 as components
 
-CHINA_TZ = timezone(timedelta(hours=8))
-
-
-def get_china_now():
-    return datetime.now(CHINA_TZ)
-
-
+# 1. 页面极简配置
 st.set_page_config(
     page_title="极简记账",
     page_icon="⚪",
     layout="centered",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="collapsed"
 )
 
-# 注入高清 Apple 桌面图标（这里用高颜值纯白底深灰圆点的极简苹果风 SVG 作为桌面图标）
-st.markdown(
-    """
-    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='115' fill='%23FFFFFF'/><text x='50% ' y='53%' font-size='220' font-family='-apple-system, sans-serif' text-anchor='middle' dominant-baseline='middle' fill='%231D1D1F'>⚪</text></svg>">
-    """,
-    unsafe_allow_html=True,
-)
-
-st.markdown(
-    """
-</style>
-:root, html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
-    color-scheme: light !important; background-color: #F5F5F7 !important; color: #1D1D1F !important;
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif !important;
-}
-#MainMenu, footer, header, [data-testid="stDecoration"], [data-testid="stStatusWidget"],
-[data-testid="stToolbar"], [data-testid="manage-app-button"], .viewerBadge_container__1QSob,
-.viewerBadge_link__1S137, .stDeployButton, .stAppDeployButton {
-    display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important;
-}
-.block-container { padding-top: 1.4rem !important; padding-left: 1rem !important; padding-right: 1rem !important; max-width: 460px !important; }
-.block-container > div > div > div[data-testid="stHorizontalBlock"]:first-of-type,
-[data-testid="stMainBlockContainer"] > div > div > div[data-testid="stHorizontalBlock"]:first-of-type {
-    background-color: #FFFFFF !important; border-radius: 999px !important; padding: 6px 10px 6px 12px !important;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.02) !important; border: 1px solid rgba(0,0,0,0.04) !important;
-    display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important;
-    justify-content: space-between !important; margin-bottom: 18px !important; gap: 6px !important;
-}
-.block-container > div > div > div[data-testid="stHorizontalBlock"]:first-of-type > div:nth-child(1),
-[data-testid="stMainBlockContainer"] > div > div > div[data-testid="stHorizontalBlock"]:first-of-type > div:nth-child(1) {
-    flex: 0 0 38px !important; width: 38px !important; min-width: 38px !important;
-}
-.block-container > div > div > div[data-testid="stHorizontalBlock"]:first-of-type > div:nth-child(2),
-[data-testid="stMainBlockContainer"] > div > div > div[data-testid="stHorizontalBlock"]:first-of-type > div:nth-child(2) {
-    flex: 1 1 auto !important; width: auto !important; min-width: 150px !important;
-}
-div[data-testid="stPopover"] > button, div[data-testid="stPopover"] > div > button {
-    border: none !important; outline: none !important; box-shadow: none !important; background-color: #FFFFFF !important;
-    width: 36px !important; height: 36px !important; min-height: 36px !important; padding: 0 !important; border-radius: 50% !important;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='%231D1D1F' stroke-width='2.0' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='12' y1='5' x2='12' y2='19'%3E%3C/line%3E%3Cline x1='5' y1='12' x2='19' y2='12'%3E%3C/line%3E%3C/svg%3E") !important;
-    background-repeat: no-repeat !important; background-position: center !important; background-size: 22px 22px !important;
-}
-div[data-testid="stPopover"] > button *, div[data-testid="stPopover"] > div > button * { display: none !important; }
-div[data-testid="stTextInput"], div[data-testid="stTextInput"] *, div[data-baseweb="input"],
-div[data-baseweb="input"] *, div[data-baseweb="base-input"], div[data-baseweb="base-input"] * {
-    background-color: #FFFFFF !important; background: #FFFFFF !important; border: none !important; box-shadow: none !important; outline: none !important;
-}
-div[data-testid="stTextInput"] input {
-    font-size: 16px !important; font-weight: 400 !important; color: #1D1D1F !important;
-    -webkit-text-fill-color: #1D1D1F !important; caret-color: #1D1D1F !important; padding: 6px 42px 6px 4px !important; opacity: 1 !important;
-}
-div[data-testid="stTextInput"] input::placeholder { color: #8E8E93 !important; -webkit-text-fill-color: #8E8E93 !important; opacity: 1 !important; }
-div[data-testid="InputInstructions"] { display: none !important; }
-div[data-testid="stPopoverBody"], div[data-baseweb="popover"] > div {
-    background-color: #FFFFFF !important; color: #1D1D1F !important; border-radius: 22px !important;
-    border: 1px solid rgba(0,0,0,0.08) !important; box-shadow: 0 12px 40px rgba(0,0,0,0.12) !important; min-width: 350px !important;
-}
-div[data-testid="stPopoverBody"] * { color: #1D1D1F !important; }
-div[data-testid="stPopoverBody"] input {
-    background-color: #F5F5F7 !important; -webkit-text-fill-color: #1D1D1F !important; border-radius: 10px !important; padding: 6px 10px !important;
-}
-button[kind="primary"] {
-    background-color: #1D1D1F !important; color: #FFFFFF !important; border: none !important;
-    border-radius: 14px !important; min-height: 40px !important; padding: 6px 14px !important; box-shadow: none !important;
-}
-button[kind="primary"] *, button[kind="primary"] p, button[kind="primary"] span {
-    color: #FFFFFF !important; -webkit-text-fill-color: #FFFFFF !important; font-weight: 500 !important; font-size: 13.5px !important;
-}
-div[data-testid="stDownloadButton"] button {
-    background-color: #F2F2F7 !important; color: #1D1D1F !important; border: none !important;
-    border-radius: 14px !important; min-height: 40px !important; width: 100% !important; padding: 6px 14px !important;
-    display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important;
-}
-div[data-testid="stDownloadButton"] button * {
-    color: #1D1D1F !important; -webkit-text-fill-color: #1D1D1F !important; font-weight: 500 !important; font-size: 13.5px !important; white-space: nowrap !important;
-}
-div[data-testid="stPopoverBody"] div[data-testid="stButton"] button[kind="secondary"] {
-    background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 !important;
-    width: 28px !important; height: 28px !important; min-height: 28px !important; border-radius: 50% !important;
-    display: flex !important; align-items: center !important; justify-content: center !important;
-}
-div[data-testid="stPopoverBody"] div[data-testid="stButton"] button[kind="secondary"] * { color: #8E8E93 !important; -webkit-text-fill-color: #8E8E93 !important; font-size: 18px !important; line-height: 1 !important; }
-div[data-testid="stPopoverBody"] div[data-testid="stButton"] button[kind="secondary"]:hover { background-color: rgba(255,59,48,0.1) !important; }
-div[data-testid="stPopoverBody"] div[data-testid="stButton"] button[kind="secondary"]:hover * { color: #FF3B30 !important; -webkit-text-fill-color: #FF3B30 !important; }
-div[data-testid="stPopoverBody"] div[data-testid="stHorizontalBlock"] {
-    background: transparent !important; border: none !important; border-bottom: 1px solid #F2F2F7 !important;
-    padding: 7px 0 !important; margin: 0 !important; display: flex !important; flex-direction: row !important;
-    flex-wrap: nowrap !important; align-items: center !important; justify-content: space-between !important; gap: 8px !important;
-}
+# 2. 全局纯净 CSS 样式（单块无空行，彻底杜绝源码外泄乱码，并消除手机端 Tab 黑边）
+GLOBAL_CSS = """
+<style>
+#MainMenu, header, footer, [data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"], .viewerBadge_container__1QSob, .styles_viewerBadge__1yB5_, [data-testid="manage-app-button"] { display: none !important; visibility: hidden !important; }
+html, body, [data-testid="stAppViewContainer"], .stApp { background-color: #F5F5F7 !important; color: #1D1D1F !important; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif !important; }
+.block-container { max-width: 460px !important; padding-top: 1.8rem !important; padding-bottom: 4rem !important; padding-left: 1.1rem !important; padding-right: 1.1rem !important; }
+[data-testid="stTabs"] [data-baseweb="tab-list"]::before, [data-testid="stTabs"] [data-baseweb="tab-list"]::after { display: none !important; background: none !important; box-shadow: none !important; }
+[data-testid="stTabs"] [data-baseweb="tab-list"] { gap: 8px !important; scrollbar-width: none !important; -ms-overflow-style: none !important; border-bottom: 1px solid #E5E5EA !important; }
+[data-testid="stTabs"] [data-baseweb="tab-list"]::-webkit-scrollbar { display: none !important; }
+[data-testid="stTabs"] button[role="tab"] { padding: 8px 6px !important; font-size: 13px !important; font-weight: 500 !important; color: #86868B !important; }
+[data-testid="stTabs"] button[role="tab"][aria-selected="true"] { color: #1D1D1F !important; font-weight: 600 !important; }
+div[data-testid="stHorizontalBlock"] { align-items: center !important; }
+div[data-testid="stPopover"] > div > button { border-radius: 50% !important; width: 40px !important; height: 40px !important; min-height: 40px !important; padding: 0 !important; background: #FFFFFF !important; border: 1px solid rgba(0,0,0,0.06) !important; box-shadow: 0 2px 10px rgba(0,0,0,0.03) !important; color: #1D1D1F !important; display: flex !important; align-items: center !important; justify-content: center !important; }
+div[data-testid="stPopover"] > div > button span { font-size: 18px !important; font-weight: 400 !important; line-height: 1 !important; }
+div[data-testid="stPopover"] > div > button svg { display: none !important; }
+div[data-testid="stTextInput"] input { border-radius: 22px !important; background: #FFFFFF !important; border: 1px solid rgba(0,0,0,0.06) !important; padding: 10px 18px !important; font-size: 14.5px !important; color: #1D1D1F !important; box-shadow: 0 2px 10px rgba(0,0,0,0.03) !important; height: 42px !important; }
+div[data-testid="stTextInput"] input:focus { border-color: #1D1D1F !important; box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important; }
+div[data-testid="stPopoverBody"] { border-radius: 22px !important; border: 1px solid rgba(0,0,0,0.06) !important; box-shadow: 0 12px 36px rgba(0,0,0,0.1) !important; padding: 14px 16px !important; width: min(92vw, 420px) !important; max-width: 92vw !important; background: #FFFFFF !important; }
+div[data-testid="stPopoverBody"] div[data-testid="stButton"] button[kind="secondary"] { border: none !important; background: transparent !important; color: #86868B !important; padding: 2px 6px !important; min-height: 26px !important; height: 26px !important; border-radius: 8px !important; box-shadow: none !important; }
+div[data-testid="stPopoverBody"] div[data-testid="stButton"] button[kind="secondary"]:hover { background-color: rgba(255,59,48,0.1) !important; color: #FF3B30 !important; }
+div[data-testid="stPopoverBody"] div[data-testid="stHorizontalBlock"] { background: transparent !important; border: none !important; border-bottom: 1px solid #F2F2F7 !important; padding: 7px 0 !important; margin: 0 !important; display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important; justify-content: space-between !important; gap: 8px !important; }
 div[data-testid="stPopoverBody"] div[data-testid="stHorizontalBlock"] > div:first-child { flex: 1 1 auto !important; min-width: 0 !important; }
 div[data-testid="stPopoverBody"] div[data-testid="stHorizontalBlock"] > div:last-child { flex: 0 0 28px !important; width: 28px !important; display: flex !important; justify-content: flex-end !important; }
 .apple-date-header { display: flex; justify-content: space-between; align-items: baseline; padding: 0 8px; margin-bottom: 10px; }
 .apple-date-main { font-size: 15px; font-weight: 600; color: #1D1D1F; letter-spacing: -0.2px; }
 .apple-date-sub { font-size: 11px; font-weight: 600; color: #86868B; letter-spacing: 0.8px; text-transform: uppercase; }
-.apple-white-card {
-    background: #FFFFFF !important; color: #1D1D1F !important; border-radius: 26px; padding: 26px 24px;
-    box-shadow: 0 6px 24px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.03); margin-bottom: 14px;
-}
+.apple-white-card { background: #FFFFFF !important; color: #1D1D1F !important; border-radius: 26px; padding: 26px 24px; box-shadow: 0 6px 24px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.03); margin-bottom: 14px; }
 .metric-title { font-size: 12px; font-weight: 500; color: #86868B !important; letter-spacing: 0.5px; margin-bottom: 8px; }
 .metric-value { font-size: 40px; font-weight: 700; color: #1D1D1F !important; letter-spacing: -1px; }
-.ai-comment-row { margin-top: 15px; padding-top: 13px; border-top: 1px solid #F2F2F7; font-size: 12.5px; color: #63686E; display: flex; align-items: center; gap: 7px; line-height: 1.4; }
-.apple-wish-card {
-    background: rgba(255,255,255,0.78) !important; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-    border-radius: 20px; padding: 14px 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.025); border: 1px solid rgba(0,0,0,0.03); margin-bottom: 16px;
-}
+.ai-comment-row { margin-top: 15px; padding-top: 13px; border-top: 1px solid #F2F2F7; font-size: 12.5px; color: #636366; display: flex; align-items: center; gap: 7px; line-height: 1.4; }
+.apple-wish-card { background: rgba(255,255,255,0.78) !important; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 20px; padding: 14px 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.025); border: 1px solid rgba(0,0,0,0.03); margin-bottom: 16px; }
 </style>
-""",
-    unsafe_allow_html=True,
+"""
+st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
+
+# 跨层 JS 隐藏右下角残留徽章
+components.html(
+    """
+    <script>
+    const cleanBadges = () => {
+        try {
+            const doc = window.parent.document;
+            const selectors = [
+                '.viewerBadge_container__1QSob',
+                '.styles_viewerBadge__1yB5_',
+                '[data-testid="manage-app-button"]',
+                'a[href*="streamlit.io/cloud"]'
+            ];
+            selectors.forEach(sel => {
+                doc.querySelectorAll(sel).forEach(el => { el.style.display = 'none'; });
+            });
+        } catch (e) {}
+    };
+    cleanBadges();
+    setInterval(cleanBadges, 1200);
+    </script>
+    """,
+    height=0,
 )
 
-
-def infer_precise_category(text, ai_cat=None):
-    t = str(text)
-    if any(
-        k in t
-        for k in [
-            "打车", "滴滴", "地铁", "公交", "高铁", "火车", "机票",
-            "车费", "加油", "停车", "骑车", "单车", "出行", "交通",
-        ]
-    ):
-        return "交通"
-    if any(
-        k in t
-        for k in [
-            "水", "饭", "餐", "面", "粉", "火锅", "咖啡", "奶茶",
-            "可乐", "饮料", "吃", "早", "午", "晚", "夜宵", "烧烤",
-            "水果", "零食", "面包", "蛋糕", "菜", "外卖", "食堂",
-        ]
-    ):
-        return "餐饮"
-    if any(
-        k in t
-        for k in [
-            "显示器", "电脑", "手机", "键盘", "鼠标", "耳机",
-            "iPad", "Mac", "充电", "数码", "相机", "硬盘",
-        ]
-    ):
-        return "数码"
-    if any(
-        k in t
-        for k in [
-            "电影", "游戏", "门票", "KTV", "演出", "展览",
-            "会员", "网吧", "桌游", "娱乐", "旅游",
-        ]
-    ):
-        return "娱乐"
-    if any(
-        k in t
-        for k in [
-            "房租", "水电", "电费", "水费", "燃气", "物业",
-            "纸巾", "洗衣", "日用", "居家", "话费", "网费",
-        ]
-    ):
-        return "居家"
-    if any(k in t for k in ["药", "医院", "看病", "挂号", "体检", "牙", "医疗"]):
-        return "医疗"
-    if any(
-        k in t
-        for k in [
-            "买", "购", "衣", "裤", "鞋", "包", "淘宝",
-            "京东", "拼多多", "超市", "商场", "护肤", "洗发",
-        ]
-    ):
-        return "购物"
-    return (
-        ai_cat
-        if ai_cat in {"餐饮", "交通", "购物", "娱乐", "居家", "数码", "医疗"}
-        else "其他"
-    )
-
-
-CATEGORY_STYLES = {
-    "餐饮": ("#EDF3F0", "#4F6F61"),
-    "交通": ("#EDF2F7", "#4A6B82"),
-    "购物": ("#F3EFF5", "#6E5A7F"),
-    "娱乐": ("#F9EFEF", "#9E5B5B"),
-    "数码": ("#EBF3F5", "#3D6B78"),
-    "居家": ("#F7F3EB", "#8C704C"),
-    "医疗": ("#F7EFF2", "#8C566B"),
-    "其他": ("#F2F3F5", "#63686E"),
-}
-PLOTLY_COLOR_MAP = {
-    "餐饮": "#84A59D",
-    "交通": "#7C98B3",
-    "购物": "#9D8CA7",
-    "娱乐": "#D49A9A",
-    "数码": "#6B909E",
-    "居家": "#C9B396",
-    "医疗": "#B88B9C",
-    "其他": "#A3A8B0",
-}
-
-
-def render_category_badge(cat, pool):
-    bg, fg = CATEGORY_STYLES.get(cat, ("#F2F3F5", "#63686E"))
-    html = (
-        f"<span style='background-color:{bg}; color:{fg}; padding:2px 7px;"
-        " border-radius:6px; font-size:11px; font-weight:600;"
-        f" display:inline-block;'>{cat}</span>"
-    )
-    if pool == "vault":
-        html += (
-            " <span style='background-color:#F5EFE6; color:#8C6239; padding:2px"
-            " 7px; border-radius:6px; font-size:11px; font-weight:600;"
-            " display:inline-block;'>小金库</span>"
-        )
-    return html
-
+# 3. 数据库初始化与缓存
+def get_china_now():
+    return datetime.now(timezone(timedelta(hours=8)))
 
 @st.cache_resource
-def init_db():
-    conn = sqlite3.connect("ledger.db", check_same_thread=False)
+def get_db_connection():
+    conn = sqlite3.connect("expenses.db", check_same_thread=False)
     c = conn.cursor()
-    c.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
     c.execute(
-        "CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY"
-        " AUTOINCREMENT, date TEXT, title TEXT, amount REAL, pool TEXT, note TEXT,"
-        " category TEXT DEFAULT '其他', user_id TEXT DEFAULT 'default')"
+        """CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT,
+            title TEXT,
+            amount REAL,
+            pool TEXT,
+            note TEXT,
+            category TEXT DEFAULT '其他',
+            user_id TEXT DEFAULT 'default'
+        )"""
     )
-    for col_sql in [
-        "ALTER TABLE transactions ADD COLUMN category TEXT DEFAULT '其他'",
-        "ALTER TABLE transactions ADD COLUMN user_id TEXT DEFAULT 'default'",
-    ]:
-        try:
-            c.execute(col_sql)
-        except Exception:
-            pass
+    c.execute(
+        """CREATE TABLE IF NOT EXISTS user_config (
+            user_id TEXT,
+            key TEXT,
+            value TEXT,
+            PRIMARY KEY (user_id, key)
+        )"""
+    )
     conn.commit()
     return conn
 
+conn = get_db_connection()
 
-conn = init_db()
+# 4. 暗号分舱与静默参数拦截
+query_params = st.query_params
+url_user = query_params.get("u", "").strip()
 
-query_dict = dict(st.query_params)
-url_user, q_val = None, None
-for k, v in query_dict.items():
-    k_clean = k.strip().lower()
-    if k_clean in ("u", "user") and v:
-        url_user = str(v).strip()
-    elif k_clean == "q" and v:
-        q_val = str(v).strip()
+if "current_user" not in st.session_state:
+    st.session_state.current_user = url_user if url_user else ""
 
-if url_user:
+if url_user and st.session_state.current_user != url_user:
     st.session_state.current_user = url_user
 
-if "current_user" not in st.session_state or not st.session_state.current_user:
-    st.markdown("<div style='height: 36px;'></div>", unsafe_allow_html=True)
+if not st.session_state.current_user:
     st.markdown(
         """
-        <div class="apple-white-card" style="text-align: center; padding: 36px 26px;">
-            <div style="font-size: 34px; margin-bottom: 10px;">⚪</div>
-            <div style="font-size: 20px; font-weight: 700; color: #1D1D1F; margin-bottom: 8px;">极简私人账本</div>
-            <div style="font-size: 13px; color: #86868B; margin-bottom: 24px; line-height: 1.5;">
+        <div style="text-align:center; padding-top: 60px; padding-bottom: 20px;">
+            <div style="font-size: 38px; margin-bottom: 12px;">⚪</div>
+            <div style="font-size: 20px; font-weight: 600; color: #1D1D1F; margin-bottom: 8px;">极简私人账本</div>
+            <div style="font-size: 13px; color: #86868B; line-height: 1.6;">
                 请输入你的专属暗号（如姓名缩写或昵称）<br>每位用户的账本、小金库与分析图完全独立隔离
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    u_input = st.text_input(
-        "专属暗号",
-        placeholder="在此输入你的专属暗号（例如：kai）...",
-        label_visibility="collapsed",
-    )
-    if st.button("进入我的私人账本 →", type="primary", use_container_width=True):
-        if u_input and u_input.strip():
-            clean_u = u_input.strip()
-            st.session_state.current_user = clean_u
-            st.query_params["u"] = clean_u
-            st.rerun()
+    user_input = st.text_input("专属暗号", placeholder="输入暗号后按回车进入...", label_visibility="collapsed")
+    if user_input.strip():
+        clean_u = user_input.strip()
+        st.session_state.current_user = clean_u
+        st.query_params["u"] = clean_u
+        st.rerun()
     st.stop()
 
 CURRENT_USER = st.session_state.current_user
-if st.query_params.get("u") != CURRENT_USER:
-    st.query_params["u"] = CURRENT_USER
 
-
-def get_user_config(key, default):
+# 5. 用户独立配置读写
+def get_user_config(key, default_val):
     c = conn.cursor()
-    c.execute("SELECT value FROM config WHERE key=?", (f"{CURRENT_USER}_{key}",))
+    c.execute("SELECT value FROM user_config WHERE user_id=? AND key=?", (CURRENT_USER, key))
     row = c.fetchone()
-    return row[0] if row is not None else default
+    return row[0] if row else default_val
 
-
-def set_user_config(key, value):
+def set_user_config(key, val):
     c = conn.cursor()
     c.execute(
-        "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
-        (f"{CURRENT_USER}_{key}", str(value)),
+        "INSERT OR REPLACE INTO user_config (user_id, key, value) VALUES (?, ?, ?)",
+        (CURRENT_USER, key, str(val)),
     )
     conn.commit()
 
-
-try:
-    SHARED_SECRET_KEY = st.secrets.get("DEEPSEEK_API_KEY", "")
-except Exception:
-    SHARED_SECRET_KEY = ""
-
-USER_CUSTOM_KEY = get_user_config("deepseek_api_key", "")
-ACTIVE_API_KEY = (
-    USER_CUSTOM_KEY.strip() if USER_CUSTOM_KEY.strip() else SHARED_SECRET_KEY
-)
-BUDGET_LIMIT = float(get_user_config("monthly_budget", 2000.0))
-VAULT_INIT = float(get_user_config("vault_init", 1000.0))
-THRESHOLD = float(get_user_config("threshold", 300.0))
+MONTHLY_BUDGET = float(get_user_config("monthly_budget", "2500.0"))
+THRESHOLD = float(get_user_config("threshold", "300.0"))
 AI_PERSONA = get_user_config("ai_persona", "温柔治愈")
-WISH_NAME = get_user_config("wish_name", "").strip()
-try:
-    WISH_TARGET = float(get_user_config("wish_target", 0.0))
-except Exception:
-    WISH_TARGET = 0.0
-LAST_AI_COMMENT = get_user_config("last_ai_comment", "").strip()
+WISH_NAME = get_user_config("wish_name", "AirPods Pro 2")
+WISH_TARGET = float(get_user_config("wish_target", "1899.0"))
+USER_API_KEY = get_user_config("api_key", "")
+DEFAULT_SECRET_KEY = st.secrets.get("DEEPSEEK_API_KEY", "") if hasattr(st, "secrets") else ""
+ACTIVE_API_KEY = USER_API_KEY if USER_API_KEY else DEFAULT_SECRET_KEY
 
+# 6. 精准分类兜底与 AI 评语生成
+CATEGORY_KEYWORDS = {
+    "餐饮": ["饭", "餐", "水", "奶茶", "咖啡", "面", "粉", "肉", "菜", "水果", "零食", "烧烤", "火锅", "外卖", "早餐", "午饭", "晚饭", "宵夜", "瑞幸", "星巴克", "麦当劳", "肯德基", "吃", "喝"],
+    "交通": ["打车", "滴滴", "地铁", "公交", "高铁", "火车", "机票", "加油", "停车", "单车", "骑车", "路费"],
+    "购物": ["买", "衣服", "裤", "鞋", "包", "护肤", "化妆", "日用", "超市", "淘宝", "京东", "拼多多", "快递"],
+    "娱乐": ["电影", "游戏", "会员", "充值", "KTV", "剧本杀", "演出", "门票", "旅游", "网吧", "麻将"],
+    "居家": ["房租", "水费", "电费", "燃气", "网费", "话费", "物业", "维修", "纸巾", "洗衣"],
+    "数码": ["手机", "电脑", "耳机", "键盘", "鼠标", "显示器", "iPad", "苹果", "相机", "镜头", "充电器", "数据线", "硬盘"],
+    "医疗": ["药", "医院", "看病", "挂号", "体检", "牙", "医保", "诊所"],
+}
+
+def infer_precise_category(text, ai_cat=""):
+    valid_cats = ["餐饮", "交通", "购物", "娱乐", "居家", "数码", "医疗", "其他"]
+    for cat, kw_list in CATEGORY_KEYWORDS.items():
+        for kw in kw_list:
+            if kw in text:
+                return cat
+    if ai_cat in valid_cats and ai_cat != "其他":
+        return ai_cat
+    return "其他"
 
 def fallback_comment(title, amount, category, persona):
     if persona == "极简高冷":
         return ""
     if persona == "毒舌损友":
         if amount >= 200:
-            return f"这一笔 ¥{amount:.0f} 下去，小金库正在角落瑟瑟发抖。"
-        return (
-            f"又吃「{title}」？嘴巴享福了，钱包瘦身了。"
-            if category == "餐饮"
-            else f"「{title}」已记下，省着点花，月底别吃土。"
-        )
-    if amount >= 200:
-        return f"努力生活的日子，偶尔犒劳自己「{title}」也很值得 ✨"
-    return (
-        f"好好吃饭是头等大事，「{title}」为你补充今日元气 ☕"
-        if category == "餐饮"
-        else "每一笔记录都是对生活的掌控，今天也辛苦啦 🌱"
-    )
-
+            return f"又花了 ¥{amount:.0f}，钱包在滴血！"
+        return f"{title} ¥{amount:.1f}，记下了，省着点花吧。"
+    return f"已温柔记下 {title}，每一分钱都算数 ✨"
 
 def fallback_parse(text):
-    nums = re.findall(r"\d+\.?\d*", text)
-    amount = float(nums[0]) if nums else 0.0
-    clean_title = (
-        re.sub(r"\d+\.?\d*", "", text).replace("元", "").replace("块", "").strip()
-        or text
-    )
-    category = infer_precise_category(text)
-    is_vault = bool(category == "数码" or "大件" in text or amount >= THRESHOLD)
-    return (
-        clean_title,
-        amount,
-        category,
-        is_vault,
-        fallback_comment(clean_title, amount, category, AI_PERSONA),
-    )
+    matches = re.findall(r"\d+(?:\.\d+)?", text)
+    amount = float(matches[-1]) if matches else 0.0
+    title = re.sub(r"\d+(?:\.\d+)?", "", text).replace("元", "").replace("块", "").strip()
+    if not title:
+        title = "日常消费"
+    cat = infer_precise_category(text)
+    is_vault = (amount >= THRESHOLD) or (cat == "数码")
+    comment = fallback_comment(title, amount, cat, AI_PERSONA)
+    return title, amount, cat, is_vault, comment
 
-
+# 7. 支持“一句话拆分多笔账单”的 DeepSeek 解析函数
 def parse_with_deepseek(text):
     if not ACTIVE_API_KEY:
         t, a, cat, iv, cm = fallback_parse(text)
@@ -386,7 +220,7 @@ def parse_with_deepseek(text):
         elif AI_PERSONA == "毒舌损友":
             persona_rule = "请用幽默、傲娇、损友吐槽的语气写一句18字以内的简短微评语。"
         else:
-            persona_rule = "留空字符串 \"\"。"
+            persona_rule = '留空字符串 ""。'
 
         prompt = f"""
         你是一个专业的分类记账助手。用户可能会在一句话中输入多笔消费（例如：“买水5元吃饭15元”）。请将它们拆分为独立的消费记录，并严格以包含 items 数组的 JSON 对象格式输出：
@@ -413,7 +247,7 @@ def parse_with_deepseek(text):
         res_data = json.loads(response.choices[0].message.content)
         items = res_data.get("items", [])
         comment = str(res_data.get("comment", "")).strip()
-        
+
         parsed_results = []
         for item in items:
             raw_title = item.get("title", text)
@@ -422,21 +256,22 @@ def parse_with_deepseek(text):
             final_cat = infer_precise_category(f"{text} {raw_title}", ai_cat)
             is_vault = bool(item.get("is_vault", False)) or (final_cat == "数码")
             parsed_results.append((raw_title, amount, final_cat, is_vault))
-            
+
         if not parsed_results:
             t, a, cat, iv, _ = fallback_parse(text)
             parsed_results.append((t, a, cat, iv))
-            
+
         if AI_PERSONA == "极简高冷":
             comment = ""
         elif not comment and parsed_results:
             comment = fallback_comment(parsed_results[0][0], parsed_results[0][1], parsed_results[0][2], AI_PERSONA)
-            
+
         return parsed_results, comment
     except Exception:
         t, a, cat, iv, cm = fallback_parse(text)
         return [(t, a, cat, iv)], cm
 
+# 8. 批量循环入账逻辑
 def add_transaction(user_text):
     user_text = str(user_text).strip()
     if user_text:
@@ -444,25 +279,25 @@ def add_transaction(user_text):
         date_str = get_china_now().strftime("%Y-%m-%d %H:%M")
         c = conn.cursor()
         count = 0
-        
+
         for title, amount, category, is_vault in items_list:
             if amount <= 0:
                 continue
             if amount >= THRESHOLD:
                 is_vault = True
             pool_type = "vault" if is_vault else "monthly"
-            
+
             c.execute(
                 "INSERT INTO transactions (date, title, amount, pool, note, category, user_id)"
                 " VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (date_str, title, amount, pool_type, user_text, category, CURRENT_USER),
             )
             count += 1
-            
+
         conn.commit()
         if comment:
             set_user_config("last_ai_comment", comment)
-            
+
         if count > 1:
             st.session_state.last_toast = f"✅ 已成功批量入账 {count} 笔交易"
         elif count == 1:
@@ -472,453 +307,218 @@ def add_transaction(user_text):
         else:
             st.session_state.last_toast = "⚠️ 未识别到有效金额"
 
+# 拦截快捷指令 URL 参数 ?q=xxx 自动记账
+if "q" in query_params and query_params["q"].strip():
+    q_text = query_params["q"].strip()
+    add_transaction(q_text)
+    del st.query_params["q"]
+    st.rerun()
 
-def handle_capsule_submit():
-    add_transaction(st.session_state.capsule_input_key)
-    st.session_state.capsule_input_key = ""
-
-
-if q_val:
-    if st.session_state.get("last_processed_q") != q_val:
-        st.session_state.last_processed_q = q_val
-        add_transaction(q_val)
-    st.query_params.clear()
-    st.query_params["u"] = CURRENT_USER
-    LAST_AI_COMMENT = get_user_config("last_ai_comment", "").strip()
-
-if st.session_state.get("last_toast"):
+if "last_toast" in st.session_state and st.session_state.last_toast:
     st.toast(st.session_state.last_toast)
     st.session_state.last_toast = ""
 
-now_cn = get_china_now()
-current_month_str = now_cn.strftime("%Y-%m")
-weekdays_cn = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
-formatted_date_cn = f"今天是{now_cn.month}月{now_cn.day}日 {weekdays_cn[now_cn.weekday()]}"
-formatted_month_en = now_cn.strftime("%b %Y").upper()
+# 9. 数据查询与双资金池计算
+now_dt = get_china_now()
+current_month_prefix = now_dt.strftime("%Y-%m")
 
-c = conn.cursor()
-c.execute(
-    "SELECT SUM(amount) FROM transactions WHERE user_id=? AND pool='monthly' AND substr(date, 1, 7) = ?",
-    (CURRENT_USER, current_month_str),
-)
-total_monthly_spent = c.fetchone()[0] or 0.0
-remaining_budget = BUDGET_LIMIT - total_monthly_spent
-
-c.execute(
-    "SELECT substr(date, 1, 7) as m, SUM(amount) FROM transactions WHERE user_id=?"
-    " AND pool='monthly' AND substr(date, 1, 7) < ? GROUP BY m",
-    (CURRENT_USER, current_month_str),
-)
-accumulated_rollover = sum(
-    (BUDGET_LIMIT - (row[1] or 0.0)) for row in c.fetchall()
+df_all = pd.read_sql_query(
+    "SELECT * FROM transactions WHERE user_id=? ORDER BY id DESC",
+    conn,
+    params=(CURRENT_USER,),
 )
 
-c.execute(
-    "SELECT SUM(amount) FROM transactions WHERE user_id=? AND pool='vault'",
-    (CURRENT_USER,),
-)
-vault_spent = c.fetchone()[0] or 0.0
-current_vault = VAULT_INIT + accumulated_rollover - vault_spent
+if not df_all.empty:
+    df_all["month"] = df_all["date"].str.slice(0, 7)
+    df_curr_month = df_all[df_all["month"] == current_month_prefix]
+    monthly_spent = df_curr_month[df_curr_month["pool"] == "monthly"]["amount"].sum()
 
-col_plus, col_input_area = st.columns([1.1, 8.9])
-with col_plus:
-    with st.popover(" "):
-        tab_ledger, tab_analytics, tab_settings,tab_guide = st.tabs(
-            ["🛡️ 小金库与流水", "📊 消费分析", "⚙️ 参数设置","📖 使用说明"]
+    past_months = [m for m in df_all["month"].unique() if m < current_month_prefix]
+    accumulated_surplus = 0.0
+    for m in past_months:
+        m_spent = df_all[(df_all["month"] == m) & (df_all["pool"] == "monthly")]["amount"].sum()
+        accumulated_surplus += (MONTHLY_BUDGET - m_spent)
+
+    vault_spent_total = df_all[df_all["pool"] == "vault"]["amount"].sum()
+    manual_vault_init = float(get_user_config("vault_init", "2000.0"))
+    vault_balance = manual_vault_init + accumulated_surplus - vault_spent_total
+else:
+    monthly_spent = 0.0
+    manual_vault_init = float(get_user_config("vault_init", "2000.0"))
+    vault_balance = manual_vault_init
+
+monthly_remaining = MONTHLY_BUDGET - monthly_spent
+
+# 10. 顶部极简输入栏与 4 标签页弹出菜单
+col_menu, col_input = st.columns([1.2, 8.8])
+
+with col_menu:
+    with st.popover("＋"):
+        tab_ledger, tab_analytics, tab_settings, tab_guide = st.tabs(
+            ["🛡️ 小金库与流水", "📊 消费分析", "⚙️ 参数设置", "📖 使用说明"]
         )
+
         with tab_ledger:
-            st.markdown(f"#### 🛡️ 隐藏小金库: ¥{current_vault:.2f}")
-            st.caption(
-                f"专属舱位：{CURRENT_USER} · 初始 ¥{VAULT_INIT:.0f} · 历月累加"
-                f" {'+' if accumulated_rollover>=0 else ''}¥{accumulated_rollover:.1f}"
-                f" · 大件 -¥{vault_spent:.1f}"
+            st.markdown(
+                f"""
+                <div style="background:#F5F5F7; border-radius:16px; padding:14px 16px; margin-bottom:12px;">
+                    <div style="font-size:11.5px; color:#86868B;">🥇 隐藏小金库可用余额</div>
+                    <div style="font-size:24px; font-weight:700; color:#1D1D1F; margin-top:2px;">¥ {vault_balance:,.2f}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
-            st.markdown("---")
-            st.markdown(f"**📜 近期账单流水（{current_month_str}）**")
-            c.execute(
-                "SELECT id, date, title, amount, pool, category FROM transactions"
-                " WHERE user_id=? ORDER BY id DESC LIMIT 20",
-                (CURRENT_USER,),
-            )
-            rows = c.fetchall()
-            if not rows:
-                st.caption("暂无记录")
-            for tx_id, tx_date, tx_title, tx_amount, tx_pool, tx_cat in rows:
-                badge_html = render_category_badge(tx_cat or "其他", tx_pool)
-                r_col1, r_col2 = st.columns([8.8, 1.2])
-                with r_col1:
-                    st.markdown(
-                        "<div style='font-size:13.5px; color:#1D1D1F; white-space:nowrap;"
-                        " overflow:hidden; text-overflow:ellipsis; display:flex;"
-                        f" align-items:center; gap:6px;'><span style='color:#8E8E93; font-size:12px;'>{tx_date[5:]}</span>"
-                        f"<b>{tx_title}</b><span>¥{tx_amount:.1f}</span>{badge_html}</div>",
-                        unsafe_allow_html=True,
-                    )
-                with r_col2:
-                    if st.button("－", key=f"del_{tx_id}", type="secondary"):
-                        c.execute(
-                            "DELETE FROM transactions WHERE id=? AND user_id=?",
-                            (tx_id, CURRENT_USER),
+            st.caption("最近账单流水（点击右侧 × 可删除）")
+            if df_all.empty:
+                st.info("暂无记账记录")
+            else:
+                for _, row in df_all.head(20).iterrows():
+                    r_col1, r_col2 = st.columns([8.8, 1.2])
+                    pool_tag = "🥇" if row["pool"] == "vault" else "⚪"
+                    with r_col1:
+                        st.markdown(
+                            f"<div style='font-size:13px; color:#1D1D1F; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>"
+                            f"{pool_tag} [{row['category']}] {row['title']} <span style='color:#1D1D1F; font-weight:600;'>¥{row['amount']:.2f}</span> "
+                            f"<span style='font-size:11px; color:#86868B;'>({row['date'][5:]})</span></div>",
+                            unsafe_allow_html=True,
                         )
-                        conn.commit()
-                        st.session_state.last_toast = (
-                            f"🗑️ 已撤销：{tx_title} (¥{tx_amount:.1f} 已退回)"
-                        )
-                        st.rerun()
-            st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
-            if st.button(
-                "🗑️ 清空我的账单数据", type="primary", use_container_width=True
-            ):
-                c.execute("DELETE FROM transactions WHERE user_id=?", (CURRENT_USER,))
-                conn.commit()
-                st.session_state.last_toast = "🗑️ 你的个人账单已清空重置"
-                st.rerun()
+                    with r_col2:
+                        if st.button("×", key=f"del_{row['id']}"):
+                            c = conn.cursor()
+                            c.execute("DELETE FROM transactions WHERE id=? AND user_id=?", (row["id"], CURRENT_USER))
+                            conn.commit()
+                            st.rerun()
 
         with tab_analytics:
-            st.markdown("#### 📊 本月消费构成")
-            st.caption(f"统计周期：{current_month_str}")
-            c.execute(
-                "SELECT category, SUM(amount) FROM transactions WHERE user_id=? AND"
-                " substr(date, 1, 7) = ? GROUP BY category ORDER BY SUM(amount) DESC",
-                (CURRENT_USER, current_month_str),
-            )
-            cat_rows = c.fetchall()
-            if not cat_rows:
-                st.info("本月暂无消费记录，快记一笔来看看分析图吧！")
+            if df_all.empty:
+                st.info("记几笔账后即可查看莫兰迪消费分布图")
             else:
-                df_cat = pd.DataFrame(cat_rows, columns=["类别", "金额"])
-                total_all_pools = sum(r[1] for r in cat_rows)
+                cat_sum = df_all.groupby("category")["amount"].sum().reset_index()
+                morandi_colors = ["#8E9BAE", "#A3B19B", "#D6A29A", "#C9B79C", "#B4A6AB", "#94A7AE", "#D0C4B2", "#B5B5B5"]
                 fig = px.pie(
-                    df_cat,
-                    names="类别",
-                    values="金额",
-                    hole=0.62,
-                    color="类别",
-                    color_discrete_map={
-                        r[0]: PLOTLY_COLOR_MAP.get(r[0], "#A3A8B0") for r in cat_rows
-                    },
-                )
-                fig.update_traces(
-                    textposition="inside",
-                    textinfo="percent",
-                    textfont=dict(size=12, color="#FFFFFF"),
-                    marker=dict(line=dict(color="#FFFFFF", width=3)),
+                    cat_sum,
+                    values="amount",
+                    names="category",
+                    hole=0.58,
+                    color_discrete_sequence=morandi_colors,
                 )
                 fig.update_layout(
-                    height=240,
                     margin=dict(t=10, b=10, l=10, r=10),
-                    showlegend=False,
+                    height=240,
+                    showlegend=True,
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(0,0,0,0)",
-                    annotations=[
-                        dict(
-                            text=(
-                                "<span style='color:#86868B; font-size:11px;'>总支出</span>"
-                                f"<br><b style='color:#1D1D1F; font-size:18px;'>¥{total_all_pools:.0f}</b>"
-                            ),
-                            x=0.5,
-                            y=0.5,
-                            showarrow=False,
-                        )
-                    ],
                 )
-                st.plotly_chart(
-                    fig, use_container_width=True, config={"displayModeBar": False}
-                )
-                for cat_name, cat_amt in cat_rows:
-                    pct = (
-                        (cat_amt / total_all_pools * 100)
-                        if total_all_pools > 0
-                        else 0
-                    )
-                    dot_c = PLOTLY_COLOR_MAP.get(cat_name, "#A3A8B0")
-                    st.markdown(
-                        "<div style='display:flex; justify-content:space-between;"
-                        " align-items:center; padding:6px 4px; border-bottom:1px"
-                        " solid #F5F5F7; font-size:13px;'><div style='display:flex;"
-                        " align-items:center; gap:8px;'><span style='width:10px;"
-                        f" height:10px; border-radius:50%; background:{dot_c};"
-                        " display:inline-block;'></span><span style='font-weight:500;"
-                        f" color:#1D1D1F;'>{cat_name}</span></div><div"
-                        f" style='color:#1D1D1F; font-weight:600;'>¥{cat_amt:.1f}"
-                        " <span style='color:#8E8E93; font-weight:400;"
-                        f" font-size:12px;'>({pct:.1f}%)</span></div></div>",
-                        unsafe_allow_html=True,
-                    )
+                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
         with tab_settings:
-            st.caption(f"👤 当前独立暗号舱位：**{CURRENT_USER}**")
-            new_budget = st.number_input(
-                "月度生活费 (元)", value=BUDGET_LIMIT, step=100.0
-            )
-            new_vault = st.number_input(
-                "小金库初始资金 (元)", value=VAULT_INIT, step=100.0
-            )
-            new_threshold = st.number_input(
-                "大额分流阈值 (元)", value=THRESHOLD, step=50.0
-            )
-            st.markdown("---")
-            st.markdown("**🎭 AI 伴侣与小金库心愿单**")
+            st.caption(f"当前独立舱位暗号：`{CURRENT_USER}`")
+            new_budget = st.number_input("月度生活费预算 (¥)", value=MONTHLY_BUDGET, step=100.0)
+            new_init_vault = st.number_input("小金库初始底金 (¥)", value=manual_vault_init, step=100.0)
+            new_threshold = st.number_input("单笔大额自动分流阈值 (¥)", value=THRESHOLD, step=50.0)
             persona_options = ["温柔治愈", "毒舌损友", "极简高冷"]
-            new_persona = st.selectbox(
-                "AI 评语性格",
-                options=persona_options,
-                index=(
-                    persona_options.index(AI_PERSONA)
-                    if AI_PERSONA in persona_options
-                    else 0
-                ),
-            )
-            new_wish_name = st.text_input(
-                "心愿物品名称 (留空不显示)",
-                value=WISH_NAME,
-                placeholder="例如：AirPods Pro 2",
-            )
-            new_wish_target = st.number_input(
-                "心愿目标金额 (元)", value=WISH_TARGET, min_value=0.0, step=100.0
-            )
-            st.markdown("---")
-            new_key = st.text_input(
-                "私人 DeepSeek Key (选填)",
-                value=USER_CUSTOM_KEY,
-                placeholder=(
-                    "已启用云端共享算力" if SHARED_SECRET_KEY else "请输入 Key"
-                ),
-                type="password",
-            )
-            if st.button("💾 保存参数", type="primary", use_container_width=True):
+            p_idx = persona_options.index(AI_PERSONA) if AI_PERSONA in persona_options else 0
+            new_persona = st.selectbox("AI 记账伴侣性格", persona_options, index=p_idx)
+            new_wish_name = st.text_input("心愿单目标名称", value=WISH_NAME)
+            new_wish_target = st.number_input("心愿单目标金额 (¥)", value=WISH_TARGET, step=100.0)
+            new_api_key = st.text_input("自定义 DeepSeek API Key (选填)", value=USER_API_KEY, type="password")
+
+            if st.button("保存参数设置", use_container_width=True):
                 set_user_config("monthly_budget", new_budget)
-                set_user_config("vault_init", new_vault)
+                set_user_config("vault_init", new_init_vault)
                 set_user_config("threshold", new_threshold)
                 set_user_config("ai_persona", new_persona)
-                set_user_config("wish_name", new_wish_name.strip())
+                set_user_config("wish_name", new_wish_name)
                 set_user_config("wish_target", new_wish_target)
-                set_user_config("deepseek_api_key", new_key)
-                if new_persona == "极简高冷":
-                    set_user_config("last_ai_comment", "")
-                st.session_state.last_toast = "✅ 参数与心愿设置已保存"
+                set_user_config("api_key", new_api_key.strip())
+                st.success("✅ 设置已保存")
                 st.rerun()
+
             st.markdown("---")
-            c.execute(
-                "SELECT date, title, amount, pool, note, category FROM transactions WHERE user_id=?",
-                (CURRENT_USER,),
-            )
-            backup_data = {
-                "user": CURRENT_USER,
-                "budget": BUDGET_LIMIT,
-                "vault_init": VAULT_INIT,
-                "threshold": THRESHOLD,
-                "ai_persona": AI_PERSONA,
-                "wish_name": WISH_NAME,
-                "wish_target": WISH_TARGET,
-                "records": [
-                    {
-                        "date": r[0],
-                        "title": r[1],
-                        "amount": r[2],
-                        "pool": r[3],
-                        "note": r[4],
-                        "category": r[5],
-                    }
-                    for r in c.fetchall()
-                ],
-            }
-            st.download_button(
-                "📤 导出本舱备份 (.json)",
-                data=json.dumps(backup_data, ensure_ascii=False, indent=2),
-                file_name=f"ledger_{CURRENT_USER}.json",
-                mime="application/json",
-                use_container_width=True,
-                type="primary",
-            )
-            uploaded_file = st.file_uploader(
-                "📥 恢复备份", type=["json"], label_visibility="collapsed"
-            )
-            if uploaded_file and st.button(
-                "⚡ 确认恢复账单", type="primary", use_container_width=True
-            ):
-                data = json.loads(uploaded_file.getvalue().decode("utf-8"))
-                set_user_config("monthly_budget", data.get("budget", BUDGET_LIMIT))
-                set_user_config("vault_init", data.get("vault_init", VAULT_INIT))
-                set_user_config("threshold", data.get("threshold", THRESHOLD))
-                c.execute("DELETE FROM transactions WHERE user_id=?", (CURRENT_USER,))
-                for rec in data.get("records", []):
-                    c.execute(
-                        "INSERT INTO transactions (date, title, amount, pool, note,"
-                        " category, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (
-                            rec["date"],
-                            rec["title"],
-                            rec["amount"],
-                            rec["pool"],
-                            rec.get("note", ""),
-                            rec.get("category", "其他"),
-                            CURRENT_USER,
-                        ),
-                    )
-                conn.commit()
-                st.rerun()
+            if not df_all.empty:
+                backup_json = df_all.to_json(orient="records", force_ascii=False)
+                st.download_button(
+                    "📤 导出本舱备份 (.json)",
+                    data=backup_json,
+                    file_name=f"ledger_{CURRENT_USER}_{now_dt.strftime('%Y%m%d')}.json",
+                    mime="application/json",
+                    use_container_width=True,
+                )
+
+        with tab_guide:
+            st.markdown("#### 📖 帮助与文档手册")
+            st.caption("查看图文配置教程与使用指南")
             st.markdown("---")
-            if st.button(
-                "🚪 切换其他暗号账户", type="primary", use_container_width=True
-            ):
-                st.session_state.current_user = ""
-                st.query_params.clear()
-                st.rerun()
 
+            st.markdown("**1. 极简账本用户使用手册**")
+            st.markdown(
+                '<a href="https://你的账本使用手册链接" target="_blank" style="display:block; text-align:center; background:#F2F2F7; color:#1D1D1F; padding:10px 14px; border-radius:12px; text-decoration:none; font-weight:500; font-size:13px; margin-bottom:14px;">📖 查看账本使用手册 →</a>',
+                unsafe_allow_html=True,
+            )
 
-with tab_guide:
-    st.markdown("#### 📖 帮助与文档手册")
-    st.caption("查看图文配置教程与使用指南")
-    st.markdown("---")
+            st.markdown("**2. iOS 快捷指令配置教程**")
+            st.markdown(
+                '<a href="https://你的快捷指令教程链接" target="_blank" style="display:block; text-align:center; background:#F2F2F7; color:#1D1D1F; padding:10px 14px; border-radius:12px; text-decoration:none; font-weight:500; font-size:13px;">⚡ 查看敲背面快捷指令教程 →</a>',
+                unsafe_allow_html=True,
+            )
 
-    st.markdown("**1. 极简账本用户使用手册**")
-    st.markdown(
-        '<a href="https://www.icloud.com.cn/notes/07a2hhOpJC4qIQonid2AO-ezA" target="_blank" style="display:block; text-align:center; background:#F2F2F7; color:#1D1D1F; padding:9px 14px; border-radius:12px; text-decoration:none; font-weight:500; font-size:13px; margin-bottom:14px;">📖 查看账本使用手册 →</a>',
-        unsafe_allow_html=True
-    )
+with col_input:
+    def on_Quick_Submit():
+        val = st.session_state.quick_input_box
+        if val.strip():
+            add_transaction(val.strip())
+            st.session_state.quick_input_box = ""
 
-    st.markdown("**2. iOS 快捷指令配置教程**")
-    st.markdown(
-        '<a href="https://www.icloud.com.cn/notes/01885mcBVlOacJRXopdqq1PFg" target="_blank" style="display:block; text-align:center; background:#F2F2F7; color:#1D1D1F; padding:9px 14px; border-radius:12px; text-decoration:none; font-weight:500; font-size:13px;">⚡ 查看敲背面快捷指令教程 →</a>',
-        unsafe_allow_html=True
-    )
-
-
-
-
-
-with col_input_area:
     st.text_input(
-        "记一笔",
-        placeholder="记一笔账吧...",
+        "快速记账",
+        placeholder="记一笔账吧（支持连记：买水5元吃饭15元）...",
+        key="quick_input_box",
+        on_change=on_Quick_Submit,
         label_visibility="collapsed",
-        key="capsule_input_key",
-        on_change=handle_capsule_submit,
     )
 
-progress_pct = min(max((total_monthly_spent / BUDGET_LIMIT) * 100, 0), 100)
-bar_color = "#D49A9A" if remaining_budget < 0 else "#1D1D1F"
-status_text = (
-    "⚠️ 额度已透支 · 小金库兜底中"
-    if remaining_budget < 0
-    else f"AI 护航中 · {CURRENT_USER} 🟢"
-)
+# 11. 主界面：日期抬头 + 月度生活费白色卡片 + 心愿单进度条
+weekdays_cn = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
+date_main_str = f"{now_dt.month}月{now_dt.day}日 {weekdays_cn[now_dt.weekday()]}"
+last_comment = get_user_config("last_ai_comment", "今天也要好好生活，理智消费 ✨")
 
-ai_comment_html = ""
-if AI_PERSONA != "极简高冷":
-    display_comment = LAST_AI_COMMENT or (
-        "随手记下一笔，让生活费与小金库井井有条 ✨"
-        if AI_PERSONA == "温柔治愈"
-        else "还没开张？今天居然一分钱都没花，值得表扬 👀"
-    )
-    dot_c = "#84A59D" if AI_PERSONA == "温柔治愈" else "#D49A9A"
-    ai_comment_html = (
-        f'<div class="ai-comment-row"><span style="width:7px; height:7px;'
-        f' border-radius:50%; background:{dot_c}; display:inline-block;'
-        f' flex-shrink:0;"></span><span>{display_comment}</span></div>'
-    )
+comment_html = ""
+if AI_PERSONA != "极简高冷" and last_comment:
+    comment_html = f'<div class="ai-comment-row"><span>💬</span><span>{last_comment}</span></div>'
 
 st.markdown(
     f"""
     <div class="apple-date-header">
-        <span class="apple-date-main">{formatted_date_cn}</span>
-        <span class="apple-date-sub">{formatted_month_en}</span>
+        <div class="apple-date-main">{date_main_str}</div>
+        <div class="apple-date-sub">MONTHLY POOL · {CURRENT_USER}</div>
     </div>
     <div class="apple-white-card">
-        <div class="metric-title">本月生活费余额 · DEEPSEEK 托管</div>
-        <div class="metric-value">¥{remaining_budget:.2f} <span style="font-size: 15px; font-weight: 400; color: #86868B;">/ {BUDGET_LIMIT:.0f}</span></div>
-        <div style="margin-top: 20px; background: #F2F2F7; border-radius: 99px; height: 7px; overflow: hidden;">
-            <div style="width: {progress_pct}%; background: {bar_color}; height: 100%; border-radius: 99px; transition: width 0.4s ease;"></div>
+        <div class="metric-title">本月剩余可用生活费</div>
+        <div class="metric-value">¥ {monthly_remaining:,.2f}</div>
+        <div style="font-size:12px; color:#86868B; margin-top:6px;">
+            本月已用 ¥{monthly_spent:,.2f} / 预算 ¥{MONTHLY_BUDGET:,.0f}
         </div>
-        <div style="margin-top: 14px; font-size: 12px; color: #86868B; display: flex; justify-content: space-between; align-items: center;">
-            <span>本月已消费 ¥{total_monthly_spent:.2f}</span>
-            <span>{status_text}</span>
-        </div>
-        {ai_comment_html}
+        {comment_html}
     </div>
-""",
+    """,
     unsafe_allow_html=True,
 )
 
 if WISH_NAME and WISH_TARGET > 0:
-    wish_pct = min(max((current_vault / WISH_TARGET) * 100, 0.0), 100.0)
-    if current_vault < WISH_TARGET:
-        wish_text = f"🎯 距离拿下「<b>{WISH_NAME}</b>」还差 <b>¥{(WISH_TARGET - current_vault):.2f}</b>"
-        wish_sub, wish_bar_color = f"{wish_pct:.0f}%", "#7C98B3"
-    else:
-        wish_text = f"✨ 小金库已攒够 <b>¥{current_vault:.2f}</b>，随时可全款拿下「<b>{WISH_NAME}</b>」！"
-        wish_sub, wish_bar_color = "100% 达成", "#84A59D"
+    progress_pct = max(0.0, min(100.0, (vault_balance / WISH_TARGET) * 100.0))
+    diff_amt = max(0.0, WISH_TARGET - vault_balance)
+    status_text = "🎉 小金库已攒够，随时可以全款拿下！" if diff_amt == 0 else f"距离拿下还差 ¥{diff_amt:,.0f} ({progress_pct:.1f}%)"
     st.markdown(
         f"""
         <div class="apple-wish-card">
-            <div style="display:flex; justify-content:space-between; align-items:center; font-size:12.5px; color:#1D1D1F; margin-bottom:8px;">
-                <span>{wish_text}</span>
-                <span style="color:#86868B; font-size:11.5px; font-weight:600;">{wish_sub}</span>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="font-size:13px; font-weight:600; color:#1D1D1F;">🎯 心愿单：{WISH_NAME}</span>
+                <span style="font-size:11.5px; color:#86868B;">{status_text}</span>
             </div>
-            <div style="background:#EAEAEA; border-radius:99px; height:4px; overflow:hidden;">
-                <div style="width:{wish_pct}%; background:{wish_bar_color}; height:100%; border-radius:99px; transition:width 0.4s ease;"></div>
+            <div style="width:100%; height:7px; background:#E5E5EA; border-radius:99px; overflow:hidden;">
+                <div style="width:{progress_pct:.1f}%; height:100%; background:#8E9BAE; border-radius:99px;"></div>
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-
-components.html(
-    """
-    <script>
-    (function() {
-        const doc = window.parent.document;
-        function mountGeminiArrow() {
-            const input = doc.querySelector('input[placeholder="记一笔..."]');
-            if (!input) return;
-            const container = input.parentElement;
-            container.style.position = 'relative'; container.style.display = 'flex'; container.style.alignItems = 'center';
-            let btn = doc.getElementById('gemini-send-circle-btn');
-            if (!btn) {
-                btn = doc.createElement('button'); btn.id = 'gemini-send-circle-btn'; btn.type = 'button';
-                btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1F1F1F" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>';
-                btn.style.cssText = 'position:absolute; right:2px; width:34px; height:34px; border-radius:50%; background-color:#A8C7FA; border:none; outline:none; display:flex; align-items:center; justify-content:center; cursor:pointer; opacity:0; transform:scale(0.5); pointer-events:none; transition:opacity 0.16s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); z-index:999; padding:0;';
-                container.appendChild(btn);
-                const triggerSubmit = function(e) {
-                    e.preventDefault(); e.stopPropagation(); btn.style.transform = 'scale(0.88)';
-                    setTimeout(() => {
-                        input.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true}));
-                        input.blur();
-                    }, 60);
-                };
-                btn.addEventListener('mousedown', triggerSubmit); btn.addEventListener('touchstart', triggerSubmit, {passive: false});
-            }
-            function syncVisibility() {
-                const hasVal = input.value && input.value.trim().length > 0;
-                btn.style.opacity = hasVal ? '1' : '0'; btn.style.transform = hasVal ? 'scale(1)' : 'scale(0.5)'; btn.style.pointerEvents = hasVal ? 'auto' : 'none';
-            }
-            if (!input.dataset.geminiArrowBound) {
-                input.dataset.geminiArrowBound = 'true';
-                input.addEventListener('input', syncVisibility); input.addEventListener('keyup', syncVisibility); input.addEventListener('change', syncVisibility);
-            }
-            syncVisibility();
-        }
-        function killBadges() {
-            const selectors = [
-                '.viewerBadge_container__1QSob',
-                '.viewerBadge_link__1S137',
-                '[data-testid="stStatusWidget"]',
-                '[data-testid="stToolbar"]',
-                '[data-testid="manage-app-button"]',
-                'a[href*="streamlit.io/cloud"]'
-            ];
-            [document, doc].forEach(d => {
-                if (!d) return;
-                selectors.forEach(sel => {
-                    try { d.querySelectorAll(sel).forEach(el => el.remove()); } catch(e) {}
-                });
-            });
-        }
-        mountGeminiArrow(); killBadges();
-        setInterval(() => { mountGeminiArrow(); killBadges(); }, 250);
-    })();
-    </script>
-    """,
-    height=0,
-)
