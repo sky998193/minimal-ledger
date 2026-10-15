@@ -376,69 +376,101 @@ def fallback_parse(text):
 
 def parse_with_deepseek(text):
     if not ACTIVE_API_KEY:
-        return fallback_parse(text)
+        t, a, cat, iv, cm = fallback_parse(text)
+        return [(t, a, cat, iv)], cm
     try:
         client = OpenAI(api_key=ACTIVE_API_KEY, base_url="https://api.deepseek.com")
-        p_rule = (
-            "用温柔治愈语气写18字内简短评语"
-            if AI_PERSONA == "温柔治愈"
-            else (
-                "用幽默傲娇损友吐槽语气写18字内评语"
-                if AI_PERSONA == "毒舌损友"
-                else "返回空字符串"
-            )
-        )
-        prompt = (
-            "解析消费输入并以JSON输出：title(名称不含数字), amount(金额float),"
-            ' category(从["餐饮","交通","购物","娱乐","居家","数码","医疗","其他"]选一),'
-            f" is_vault(是否大件或数码boolean), comment({p_rule})。输入：{text}"
-        )
-        res = client.chat.completions.create(
+        persona_rule = ""
+        if AI_PERSONA == "温柔治愈":
+            persona_rule = "请用温柔、治愈、暖心夸奖的语气写一句18字以内的简短微评语。"
+        elif AI_PERSONA == "毒舌损友":
+            persona_rule = "请用幽默、傲娇、损友吐槽的语气写一句18字以内的简短微评语。"
+        else:
+            persona_rule = "留空字符串 \"\"。"
+
+        prompt = f"""
+        你是一个专业的分类记账助手。用户可能会在一句话中输入多笔消费（例如：“买水5元吃饭15元”）。请将它们拆分为独立的消费记录，并严格以包含 items 数组的 JSON 对象格式输出：
+        {{
+          "items": [
+            {{
+              "title": "消费项目精简名称（string，不含数字和金额）",
+              "amount": 消费金额（float）,
+              "category": "必须从 ['餐饮', '交通', '购物', '娱乐', '居家', '数码', '医疗', '其他'] 中选一个",
+              "is_vault": 是否属于数码大件或大额支出（boolean）
+            }}
+          ],
+          "comment": "{persona_rule}"
+        }}
+        
+        用户输入：{text}
+        """
+        response = client.chat.completions.create(
             model="deepseek-chat",
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
             stream=False,
         )
-        r = json.loads(res.choices[0].message.content)
-        raw_title, amount = r.get("title", text), float(r.get("amount", 0.0))
-        final_cat = infer_precise_category(
-            f"{text} {raw_title}", r.get("category", "")
-        )
-        is_vault = bool(r.get("is_vault", False)) or (final_cat == "数码")
-        comment = (
-            ""
-            if AI_PERSONA == "极简高冷"
-            else (
-                str(r.get("comment", "")).strip()
-                or fallback_comment(raw_title, amount, final_cat, AI_PERSONA)
-            )
-        )
-        return raw_title, amount, final_cat, is_vault, comment
+        res_data = json.loads(response.choices[0].message.content)
+        items = res_data.get("items", [])
+        comment = str(res_data.get("comment", "")).strip()
+        
+        parsed_results = []
+        for item in items:
+            raw_title = item.get("title", text)
+            amount = float(item.get("amount", 0.0))
+            ai_cat = item.get("category", "")
+            final_cat = infer_precise_category(f"{text} {raw_title}", ai_cat)
+            is_vault = bool(item.get("is_vault", False)) or (final_cat == "数码")
+            parsed_results.append((raw_title, amount, final_cat, is_vault))
+            
+        if not parsed_results:
+            t, a, cat, iv, _ = fallback_parse(text)
+            parsed_results.append((t, a, cat, iv))
+            
+        if AI_PERSONA == "极简高冷":
+            comment = ""
+        elif not comment and parsed_results:
+            comment = fallback_comment(parsed_results[0][0], parsed_results[0][1], parsed_results[0][2], AI_PERSONA)
+            
+        return parsed_results, comment
     except Exception:
-        return fallback_parse(text)
-
+        t, a, cat, iv, cm = fallback_parse(text)
+        return [(t, a, cat, iv)], cm
 
 def add_transaction(user_text):
     user_text = str(user_text).strip()
     if user_text:
-        title, amount, category, is_vault, comment = parse_with_deepseek(user_text)
-        if amount >= THRESHOLD:
-            is_vault = True
-        pool_type = "vault" if is_vault else "monthly"
+        items_list, comment = parse_with_deepseek(user_text)
         date_str = get_china_now().strftime("%Y-%m-%d %H:%M")
         c = conn.cursor()
-        c.execute(
-            "INSERT INTO transactions (date, title, amount, pool, note, category, user_id)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (date_str, title, amount, pool_type, user_text, category, CURRENT_USER),
-        )
+        count = 0
+        
+        for title, amount, category, is_vault in items_list:
+            if amount <= 0:
+                continue
+            if amount >= THRESHOLD:
+                is_vault = True
+            pool_type = "vault" if is_vault else "monthly"
+            
+            c.execute(
+                "INSERT INTO transactions (date, title, amount, pool, note, category, user_id)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (date_str, title, amount, pool_type, user_text, category, CURRENT_USER),
+            )
+            count += 1
+            
         conn.commit()
         if comment:
             set_user_config("last_ai_comment", comment)
-        st.session_state.last_toast = (
-            f"✅ 已入账：[{category}] {title} ¥{amount:.2f}"
-            f" （{'🥇小金库' if pool_type == 'vault' else '本月生活费'}）"
-        )
+            
+        if count > 1:
+            st.session_state.last_toast = f"✅ 已成功批量入账 {count} 笔交易"
+        elif count == 1:
+            item = items_list[0]
+            pool_name = "🥇小金库" if (item[3] or item[1] >= THRESHOLD) else "本月生活费"
+            st.session_state.last_toast = f"✅ 已入账：[{item[2]}] {item[0]} ¥{item[1]:.2f} （{pool_name}）"
+        else:
+            st.session_state.last_toast = "⚠️ 未识别到有效金额"
 
 
 def handle_capsule_submit():
