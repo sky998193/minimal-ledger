@@ -524,7 +524,7 @@ col_plus, col_input_area = st.columns([1.1, 8.9])
 with col_plus:
     with st.popover(" "):
         tab_ledger, tab_analytics, tab_settings = st.tabs(
-            ["🛡️ 小金库与流水", "📊 消费分析", "⚙️ 参数设置"]
+            ["🛡️ 小金库与流水", "📊 消费分析", "⚙️ 参数设置","📖 使用说明"]
         )
         with tab_ledger:
             st.markdown(f"#### 🛡️ 隐藏小金库: ¥{current_vault:.2f}")
@@ -765,6 +765,28 @@ with col_plus:
                 st.session_state.current_user = ""
                 st.query_params.clear()
                 st.rerun()
+
+
+with tab_guide:
+    st.markdown("#### 📖 帮助与文档手册")
+    st.caption("查看图文配置教程与使用指南")
+    st.markdown("---")
+
+    st.markdown("**1. 极简账本用户使用手册**")
+    st.markdown(
+        '<a href="你的账本使用手册网址(如Notion/飞书/GitHub链接)" target="_blank" style="display:block; text-align:center; background:#F2F2F7; color:#1D1D1F; padding:9px 14px; border-radius:12px; text-decoration:none; font-weight:500; font-size:13px; margin-bottom:14px;">📖 查看账本使用手册 →</a>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown("**2. iOS 快捷指令配置教程**")
+    st.markdown(
+        '<a href="你的快捷指令教程网址(如Notion/飞书/GitHub链接)" target="_blank" style="display:block; text-align:center; background:#F2F2F7; color:#1D1D1F; padding:9px 14px; border-radius:12px; text-decoration:none; font-weight:500; font-size:13px;">⚡ 查看敲背面快捷指令教程 →</a>',
+        unsafe_allow_html=True
+    )
+
+
+
+
 
 with col_input_area:
     st.text_input(
