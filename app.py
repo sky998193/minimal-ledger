@@ -576,7 +576,7 @@ with col_plus:
 
         with tab_analytics:
             st.markdown("#### 📊 本月消费构成")
-            st.caption(f"统计周期：{current_month_str}（低饱和莫兰迪色系）")
+            st.caption(f"统计周期：{current_month_str}")
             c.execute(
                 "SELECT category, SUM(amount) FROM transactions WHERE user_id=? AND"
                 " substr(date, 1, 7) = ? GROUP BY category ORDER BY SUM(amount) DESC",
