@@ -760,21 +760,27 @@ with col_plus:
                 st.rerun()
 
 with tab_guide:
-    st.markdown("#### 📖 帮助与文档手册")
-    st.caption("查看图文配置教程与使用指南")
-    st.markdown("---")
+            st.markdown("#### 📖 帮助与文档手册")
+            st.caption("查看图文配置教程与使用指南")
+            st.markdown("---")
 
-    st.markdown("**1. 极简账本用户使用手册**")
-    st.markdown(
-        '<a href="https://www.icloud.com.cn/notes/07a2hhOpJC4qIQonid2AO-ezA" target="_blank" style="display:block; text-align:center; background:#F2F2F7; color:#1D1D1F; padding:9px 14px; border-radius:12px; text-decoration:none; font-weight:500; font-size:13px; margin-bottom:14px;">📖 查看账本使用手册 →</a>',
-        unsafe_allow_html=True
-    )
+            st.markdown("**1. 极简账本用户使用手册**")
+            st.markdown(
+                '<a href="https://你的账本使用手册链接" target="_blank" style="display:block; text-align:center; background:#F2F2F7; color:#1D1D1F; padding:10px 14px; border-radius:12px; text-decoration:none; font-weight:500; font-size:13px; margin-bottom:14px;">📖 查看账本使用手册 →</a>',
+                unsafe_allow_html=True,
+            )
 
-    st.markdown("**2. iOS 快捷指令配置教程**")
-    st.markdown(
-        '<a href="https://www.icloud.com.cn/notes/01885mcBVlOacJRXopdqq1PFg" target="_blank" style="display:block; text-align:center; background:#F2F2F7; color:#1D1D1F; padding:9px 14px; border-radius:12px; text-decoration:none; font-weight:500; font-size:13px;">⚡ 查看敲背面快捷指令教程 →</a>',
-        unsafe_allow_html=True
-    )
+            st.markdown("**2. iOS 快捷指令配置教程**")
+            st.markdown(
+                '<a href="https://你的快捷指令教程链接" target="_blank" style="display:block; text-align:center; background:#F2F2F7; color:#1D1D1F; padding:10px 14px; border-radius:12px; text-decoration:none; font-weight:500; font-size:13px; margin-bottom:14px;">⚡ 查看敲背面快捷指令教程 →</a>',
+                unsafe_allow_html=True,
+            )
+
+            st.markdown("**📱 附加教程:添加到主屏幕（原生 App 体验）**")
+            st.markdown(
+                '<a href="https://www.icloud.com.cn/notes/0c6Nb2Gnhx78EDV365SleN6TA" target="_blank" style="display:block; text-align:center; background:#F2F2F7; color:#1D1D1F; padding:10px 14px; border-radius:12px; text-decoration:none; font-weight:500; font-size:13px;">📱 查看 Safari 添加桌面教程 →</a>',
+                unsafe_allow_html=True,
+            )
                 
 
 with col_input_area:
