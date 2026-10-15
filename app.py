@@ -523,7 +523,7 @@ current_vault = VAULT_INIT + accumulated_rollover - vault_spent
 col_plus, col_input_area = st.columns([1.1, 8.9])
 with col_plus:
     with st.popover(" "):
-        tab_ledger, tab_analytics, tab_settings = st.tabs(
+        tab_ledger, tab_analytics, tab_settings,tab_guide = st.tabs(
             ["🛡️ 小金库与流水", "📊 消费分析", "⚙️ 参数设置","📖 使用说明"]
         )
         with tab_ledger:
