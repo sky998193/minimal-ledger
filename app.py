@@ -534,19 +534,52 @@ with col_plus:
                 (CURRENT_USER,),
             )
             rows = c.fetchall()
-            if not rows:
-                st.caption("暂无记录")
-            for tx_id, tx_date, tx_title, tx_amount, tx_pool, tx_cat in rows:
-                badge_html = render_category_badge(tx_cat or "其他", tx_pool)
-                r_col1, r_col2 = st.columns([8.8, 1.2])
-                with r_col1:
-                    st.markdown(
-                        "<div style='font-size:13.5px; color:#1D1D1F; white-space:nowrap;"
-                        " overflow:hidden; text-overflow:ellipsis; display:flex;"
-                        f" align-items:center; gap:6px;'><span style='color:#8E8E93; font-size:12px;'>{tx_date[5:]}</span>"
-                        f"<b>{tx_title}</b><span>¥{tx_amount:.1f}</span>{badge_html}</div>",
-                        unsafe_allow_html=True,
-                    )
+           if df_all.empty:
+                st.info("暂无记账记录")
+            else:
+                valid_cats = ["餐饮", "交通", "购物", "娱乐", "居家", "数码", "医疗", "其他"]
+                
+                for _, row in df_all.head(20).iterrows():
+                    r_id = row["id"]
+                    edit_key = f"editing_{r_id}"
+                    
+                    # 检查当前行是否处于编辑分类状态
+                    if st.session_state.get(edit_key, False):
+                        # 编辑状态：显示下拉选择框和保存按钮
+                        e_col1, e_col2, e_col3 = st.columns([5, 3, 2])
+                        with e_col1:
+                            st.markdown(f"<div style='font-size:12.5px; padding-top:6px;'>{row['title']}</div>", unsafe_allow_html=True)
+                        with e_col2:
+                            current_cat_idx = valid_cats.index(row["category"]) if row["category"] in valid_cats else 7
+                            new_cat = st.selectbox("分类", valid_cats, index=current_cat_idx, key=f"sel_{r_id}", label_visibility="collapsed")
+                        with e_col3:
+                            if st.button("保存", key=f"save_{r_id}", use_container_width=True):
+                                c = conn.cursor()
+                                c.execute("UPDATE transactions SET category=? WHERE id=? AND user_id=?", (new_cat, r_id, CURRENT_USER))
+                                conn.commit()
+                                st.session_state[edit_key] = False
+                                st.rerun()
+                    else:
+                        # 正常展示状态：点击类别标签即可一键切换到编辑状态
+                        r_col1, r_col2, r_col3 = st.columns([6.2, 2.6, 1.2])
+                        pool_tag = "🥇" if row["pool"] == "vault" else "⚪"
+                        with r_col1:
+                            st.markdown(
+                                f"<div style='font-size:13px; color:#1D1D1F; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;'>"
+                                f"{pool_tag} {row['title']} <span style='color:#1D1D1F; font-weight:600;'>¥{row['amount']:.2f}</span></div>",
+                                unsafe_allow_html=True,
+                            )
+                        with r_col2:
+                            # 用按钮包裹类别名称，点击即可触发编辑
+                            if st.button(f"[{row['category']}]", key=f"cat_btn_{r_id}", use_container_width=True):
+                                st.session_state[edit_key] = True
+                                st.rerun()
+                        with r_col3:
+                            if st.button("×", key=f"del_{r_id}", use_container_width=True):
+                                c = conn.cursor()
+                                c.execute("DELETE FROM transactions WHERE id=? AND user_id=?", (r_id, CURRENT_USER))
+                                conn.commit()
+                                st.rerun()
                 with r_col2:
                     if st.button("－", key=f"del_{tx_id}", type="secondary"):
                         c.execute(
