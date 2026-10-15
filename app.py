@@ -22,24 +22,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# 注入高清 Apple 桌面图标（这里用高颜值纯白底深灰圆点的极简苹果风 SVG 作为桌面图标）
-st.markdown(
-    """
-    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='115' fill='%23FFFFFF'/><text x='50% ' y='53%' font-size='220' font-family='-apple-system, sans-serif' text-anchor='middle' dominant-baseline='middle' fill='%231D1D1F'>⚪</text></svg>">
-    """,
-    unsafe_allow_html=True,
-)
-
 st.markdown(
     """
 <style>
-/* 隐藏 Streamlit 手机端标签页两端的黑色滚动阴影 */
-[data-testid="stTabs"] [data-baseweb="tab-list"]::before,
-[data-testid="stTabs"] [data-baseweb="tab-list"]::after {
-    display: none !important;
-}
-
-</style>
 :root, html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
     color-scheme: light !important; background-color: #F5F5F7 !important; color: #1D1D1F !important;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif !important;
@@ -383,101 +368,69 @@ def fallback_parse(text):
 
 def parse_with_deepseek(text):
     if not ACTIVE_API_KEY:
-        t, a, cat, iv, cm = fallback_parse(text)
-        return [(t, a, cat, iv)], cm
+        return fallback_parse(text)
     try:
         client = OpenAI(api_key=ACTIVE_API_KEY, base_url="https://api.deepseek.com")
-        persona_rule = ""
-        if AI_PERSONA == "温柔治愈":
-            persona_rule = "请用温柔、治愈、暖心夸奖的语气写一句18字以内的简短微评语。"
-        elif AI_PERSONA == "毒舌损友":
-            persona_rule = "请用幽默、傲娇、损友吐槽的语气写一句18字以内的简短微评语。"
-        else:
-            persona_rule = "留空字符串 \"\"。"
-
-        prompt = f"""
-        你是一个专业的分类记账助手。用户可能会在一句话中输入多笔消费（例如：“买水5元吃饭15元”）。请将它们拆分为独立的消费记录，并严格以包含 items 数组的 JSON 对象格式输出：
-        {{
-          "items": [
-            {{
-              "title": "消费项目精简名称（string，不含数字和金额）",
-              "amount": 消费金额（float）,
-              "category": "必须从 ['餐饮', '交通', '购物', '娱乐', '居家', '数码', '医疗', '其他'] 中选一个",
-              "is_vault": 是否属于数码大件或大额支出（boolean）
-            }}
-          ],
-          "comment": "{persona_rule}"
-        }}
-        
-        用户输入：{text}
-        """
-        response = client.chat.completions.create(
+        p_rule = (
+            "用温柔治愈语气写18字内简短评语"
+            if AI_PERSONA == "温柔治愈"
+            else (
+                "用幽默傲娇损友吐槽语气写18字内评语"
+                if AI_PERSONA == "毒舌损友"
+                else "返回空字符串"
+            )
+        )
+        prompt = (
+            "解析消费输入并以JSON输出：title(名称不含数字), amount(金额float),"
+            ' category(从["餐饮","交通","购物","娱乐","居家","数码","医疗","其他"]选一),'
+            f" is_vault(是否大件或数码boolean), comment({p_rule})。输入：{text}"
+        )
+        res = client.chat.completions.create(
             model="deepseek-chat",
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
             stream=False,
         )
-        res_data = json.loads(response.choices[0].message.content)
-        items = res_data.get("items", [])
-        comment = str(res_data.get("comment", "")).strip()
-        
-        parsed_results = []
-        for item in items:
-            raw_title = item.get("title", text)
-            amount = float(item.get("amount", 0.0))
-            ai_cat = item.get("category", "")
-            final_cat = infer_precise_category(f"{text} {raw_title}", ai_cat)
-            is_vault = bool(item.get("is_vault", False)) or (final_cat == "数码")
-            parsed_results.append((raw_title, amount, final_cat, is_vault))
-            
-        if not parsed_results:
-            t, a, cat, iv, _ = fallback_parse(text)
-            parsed_results.append((t, a, cat, iv))
-            
-        if AI_PERSONA == "极简高冷":
-            comment = ""
-        elif not comment and parsed_results:
-            comment = fallback_comment(parsed_results[0][0], parsed_results[0][1], parsed_results[0][2], AI_PERSONA)
-            
-        return parsed_results, comment
+        r = json.loads(res.choices[0].message.content)
+        raw_title, amount = r.get("title", text), float(r.get("amount", 0.0))
+        final_cat = infer_precise_category(
+            f"{text} {raw_title}", r.get("category", "")
+        )
+        is_vault = bool(r.get("is_vault", False)) or (final_cat == "数码")
+        comment = (
+            ""
+            if AI_PERSONA == "极简高冷"
+            else (
+                str(r.get("comment", "")).strip()
+                or fallback_comment(raw_title, amount, final_cat, AI_PERSONA)
+            )
+        )
+        return raw_title, amount, final_cat, is_vault, comment
     except Exception:
-        t, a, cat, iv, cm = fallback_parse(text)
-        return [(t, a, cat, iv)], cm
+        return fallback_parse(text)
+
 
 def add_transaction(user_text):
     user_text = str(user_text).strip()
     if user_text:
-        items_list, comment = parse_with_deepseek(user_text)
+        title, amount, category, is_vault, comment = parse_with_deepseek(user_text)
+        if amount >= THRESHOLD:
+            is_vault = True
+        pool_type = "vault" if is_vault else "monthly"
         date_str = get_china_now().strftime("%Y-%m-%d %H:%M")
         c = conn.cursor()
-        count = 0
-        
-        for title, amount, category, is_vault in items_list:
-            if amount <= 0:
-                continue
-            if amount >= THRESHOLD:
-                is_vault = True
-            pool_type = "vault" if is_vault else "monthly"
-            
-            c.execute(
-                "INSERT INTO transactions (date, title, amount, pool, note, category, user_id)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (date_str, title, amount, pool_type, user_text, category, CURRENT_USER),
-            )
-            count += 1
-            
+        c.execute(
+            "INSERT INTO transactions (date, title, amount, pool, note, category, user_id)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (date_str, title, amount, pool_type, user_text, category, CURRENT_USER),
+        )
         conn.commit()
         if comment:
             set_user_config("last_ai_comment", comment)
-            
-        if count > 1:
-            st.session_state.last_toast = f"✅ 已成功批量入账 {count} 笔交易"
-        elif count == 1:
-            item = items_list[0]
-            pool_name = "🥇小金库" if (item[3] or item[1] >= THRESHOLD) else "本月生活费"
-            st.session_state.last_toast = f"✅ 已入账：[{item[2]}] {item[0]} ¥{item[1]:.2f} （{pool_name}）"
-        else:
-            st.session_state.last_toast = "⚠️ 未识别到有效金额"
+        st.session_state.last_toast = (
+            f"✅ 已入账：[{category}] {title} ¥{amount:.2f}"
+            f" （{'🥇小金库' if pool_type == 'vault' else '本月生活费'}）"
+        )
 
 
 def handle_capsule_submit():
@@ -500,7 +453,7 @@ if st.session_state.get("last_toast"):
 now_cn = get_china_now()
 current_month_str = now_cn.strftime("%Y-%m")
 weekdays_cn = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
-formatted_date_cn = f"今天是{now_cn.month}月{now_cn.day}日 {weekdays_cn[now_cn.weekday()]}"
+formatted_date_cn = f"{now_cn.month}月{now_cn.day}日 {weekdays_cn[now_cn.weekday()]}"
 formatted_month_en = now_cn.strftime("%b %Y").upper()
 
 c = conn.cursor()
@@ -530,8 +483,8 @@ current_vault = VAULT_INIT + accumulated_rollover - vault_spent
 col_plus, col_input_area = st.columns([1.1, 8.9])
 with col_plus:
     with st.popover(" "):
-        tab_ledger, tab_analytics, tab_settings,tab_guide = st.tabs(
-            ["🛡️ 小金库与流水", "📊 消费分析", "⚙️ 参数设置","📖 使用说明"]
+        tab_ledger, tab_analytics, tab_settings = st.tabs(
+            ["🛡️ 小金库与流水", "📊 消费分析", "⚙️ 参数设置"]
         )
         with tab_ledger:
             st.markdown(f"#### 🛡️ 隐藏小金库: ¥{current_vault:.2f}")
@@ -583,7 +536,7 @@ with col_plus:
 
         with tab_analytics:
             st.markdown("#### 📊 本月消费构成")
-            st.caption(f"统计周期：{current_month_str}")
+            st.caption(f"统计周期：{current_month_str}（低饱和莫兰迪色系）")
             c.execute(
                 "SELECT category, SUM(amount) FROM transactions WHERE user_id=? AND"
                 " substr(date, 1, 7) = ? GROUP BY category ORDER BY SUM(amount) DESC",
@@ -773,32 +726,10 @@ with col_plus:
                 st.query_params.clear()
                 st.rerun()
 
-
-with tab_guide:
-    st.markdown("#### 📖 帮助与文档手册")
-    st.caption("查看图文配置教程与使用指南")
-    st.markdown("---")
-
-    st.markdown("**1. 极简账本用户使用手册**")
-    st.markdown(
-        '<a href="https://www.icloud.com.cn/notes/07a2hhOpJC4qIQonid2AO-ezA" target="_blank" style="display:block; text-align:center; background:#F2F2F7; color:#1D1D1F; padding:9px 14px; border-radius:12px; text-decoration:none; font-weight:500; font-size:13px; margin-bottom:14px;">📖 查看账本使用手册 →</a>',
-        unsafe_allow_html=True
-    )
-
-    st.markdown("**2. iOS 快捷指令配置教程**")
-    st.markdown(
-        '<a href="https://www.icloud.com.cn/notes/01885mcBVlOacJRXopdqq1PFg" target="_blank" style="display:block; text-align:center; background:#F2F2F7; color:#1D1D1F; padding:9px 14px; border-radius:12px; text-decoration:none; font-weight:500; font-size:13px;">⚡ 查看敲背面快捷指令教程 →</a>',
-        unsafe_allow_html=True
-    )
-
-
-
-
-
 with col_input_area:
     st.text_input(
         "记一笔",
-        placeholder="记一笔账吧...",
+        placeholder="记一笔...",
         label_visibility="collapsed",
         key="capsule_input_key",
         on_change=handle_capsule_submit,
@@ -929,6 +860,3 @@ components.html(
     """,
     height=0,
 )
-
-
-
