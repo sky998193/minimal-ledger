@@ -577,7 +577,9 @@ with col_plus:
             )
             cat_rows = c.fetchall()
             if not cat_rows:
-                st.info("本月暂无消费记录，快记一笔来看看分析图吧！")
+                st.info("本月暂无消费记录，快记一笔
+                
+                来看看分析图吧！")
             else:
                 df_cat = pd.DataFrame(cat_rows, columns=["类别", "金额"])
                 total_all_pools = sum(r[1] for r in cat_rows)
@@ -780,7 +782,7 @@ with tab_guide:
 with col_input_area:
     st.text_input(
         "记一笔",
-        placeholder="记一笔...",
+        placeholder="记一笔账吧...",
         label_visibility="collapsed",
         key="capsule_input_key",
         on_change=handle_capsule_submit,
