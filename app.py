@@ -22,50 +22,107 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-GLOBAL_CSS = """
+st.markdown(
+    """
 <style>
-#MainMenu, header, footer, [data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"], .viewerBadge_container__1QSob, .styles_viewerBadge__1yB5_, [data-testid="manage-app-button"] { display: none !important; visibility: hidden !important; }
-html, body, [data-testid="stAppViewContainer"], .stApp { background-color: #F5F5F7 !important; color: #1D1D1F !important; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif !important; }
-.block-container { max-width: 460px !important; padding-top: 1.8rem !important; padding-bottom: 4rem !important; padding-left: 1.1rem !important; padding-right: 1.1rem !important; }
-[data-testid="stTabs"] *, [data-testid="stTabs"] *::before, [data-testid="stTabs"] *::after { -webkit-mask-image: none !important; mask-image: none !important; box-shadow: none !important; }
-[data-testid="stTabs"] > div > div > div > button { display: none !important; }
-[data-testid="stTabs"] [data-baseweb="tab-list"] { gap: 2px !important; justify-content: space-between !important; overflow: hidden !important; background: transparent !important; border-bottom: 1px solid #E5E5EA !important; }
-[data-testid="stTabs"] button[role="tab"] { flex: 1 1 auto !important; padding: 8px 2px !important; font-size: 12px !important; font-weight: 500 !important; color: #86868B !important; background: transparent !important; justify-content: center !important; white-space: nowrap !important; }
-[data-testid="stTabs"] button[role="tab"][aria-selected="true"] { color: #1D1D1F !important; font-weight: 600 !important; background: transparent !important; }
-div[data-testid="stHorizontalBlock"] { align-items: center !important; }
-div[data-testid="stPopover"] > div > button { border-radius: 50% !important; width: 40px !important; height: 40px !important; min-height: 40px !important; padding: 0 !important; background: #FFFFFF !important; border: 1px solid rgba(0,0,0,0.06) !important; box-shadow: 0 2px 10px rgba(0,0,0,0.03) !important; color: #1D1D1F !important; display: flex !important; align-items: center !important; justify-content: center !important; }
-div[data-testid="stPopover"] > div > button span { font-size: 18px !important; font-weight: 400 !important; line-height: 1 !important; }
-div[data-testid="stPopover"] > div > button svg { display: none !important; }
-div[data-testid="stTextInput"] div[data-baseweb="input"], div[data-testid="stTextInput"] div[data-baseweb="base-input"] { background: transparent !important; border: none !important; box-shadow: none !important; border-radius: 22px !important; padding: 0 !important; }
-div[data-testid="stTextInput"] input { border-radius: 22px !important; background: #FFFFFF !important; border: 1px solid rgba(0,0,0,0.06) !important; padding: 10px 18px !important; font-size: 14.5px !important; color: #1D1D1F !important; box-shadow: 0 2px 10px rgba(0,0,0,0.03) !important; height: 42px !important; outline: none !important; }
-div[data-testid="stTextInput"] input:focus { border-color: rgba(0,0,0,0.15) !important; box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important; outline: none !important; }
-div[data-testid="stPopoverBody"] { border-radius: 22px !important; border: 1px solid rgba(0,0,0,0.06) !important; box-shadow: 0 12px 36px rgba(0,0,0,0.1) !important; padding: 14px 16px !important; width: min(92vw, 420px) !important; max-width: 92vw !important; background: #FFFFFF !important; }
-div[data-testid="stPopoverBody"] div[data-testid="stButton"] button[kind="secondary"] { border: none !important; background: transparent !important; color: #86868B !important; padding: 2px 6px !important; min-height: 26px !important; height: 26px !important; border-radius: 8px !important; box-shadow: none !important; }
-div[data-testid="stPopoverBody"] div[data-testid="stButton"] button[kind="secondary"]:hover { background-color: rgba(255,59,48,0.1) !important; color: #FF3B30 !important; }
-div[data-testid="stPopoverBody"] div[data-testid="stHorizontalBlock"] { background: transparent !important; border: none !important; border-bottom: 1px solid #F2F2F7 !important; padding: 7px 0 !important; margin: 0 !important; display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important; justify-content: space-between !important; gap: 8px !important; }
+:root, html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+    color-scheme: light !important; background-color: #F5F5F7 !important; color: #1D1D1F !important;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif !important;
+}
+#MainMenu, footer, header, [data-testid="stDecoration"], [data-testid="stStatusWidget"],
+[data-testid="stToolbar"], [data-testid="manage-app-button"], .viewerBadge_container__1QSob,
+.viewerBadge_link__1S137, .stDeployButton, .stAppDeployButton {
+    display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important;
+}
+.block-container { padding-top: 1.4rem !important; padding-left: 1rem !important; padding-right: 1rem !important; max-width: 460px !important; }
+.block-container > div > div > div[data-testid="stHorizontalBlock"]:first-of-type,
+[data-testid="stMainBlockContainer"] > div > div > div[data-testid="stHorizontalBlock"]:first-of-type {
+    background-color: #FFFFFF !important; border-radius: 999px !important; padding: 6px 10px 6px 12px !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.02) !important; border: 1px solid rgba(0,0,0,0.04) !important;
+    display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; align-items: center !important;
+    justify-content: space-between !important; margin-bottom: 18px !important; gap: 6px !important;
+}
+.block-container > div > div > div[data-testid="stHorizontalBlock"]:first-of-type > div:nth-child(1),
+[data-testid="stMainBlockContainer"] > div > div > div[data-testid="stHorizontalBlock"]:first-of-type > div:nth-child(1) {
+    flex: 0 0 38px !important; width: 38px !important; min-width: 38px !important;
+}
+.block-container > div > div > div[data-testid="stHorizontalBlock"]:first-of-type > div:nth-child(2),
+[data-testid="stMainBlockContainer"] > div > div > div[data-testid="stHorizontalBlock"]:first-of-type > div:nth-child(2) {
+    flex: 1 1 auto !important; width: auto !important; min-width: 150px !important;
+}
+div[data-testid="stPopover"] > button, div[data-testid="stPopover"] > div > button {
+    border: none !important; outline: none !important; box-shadow: none !important; background-color: #FFFFFF !important;
+    width: 36px !important; height: 36px !important; min-height: 36px !important; padding: 0 !important; border-radius: 50% !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='%231D1D1F' stroke-width='2.0' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='12' y1='5' x2='12' y2='19'%3E%3C/line%3E%3Cline x1='5' y1='12' x2='19' y2='12'%3E%3C/line%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important; background-position: center !important; background-size: 22px 22px !important;
+}
+div[data-testid="stPopover"] > button *, div[data-testid="stPopover"] > div > button * { display: none !important; }
+div[data-testid="stTextInput"], div[data-testid="stTextInput"] *, div[data-baseweb="input"],
+div[data-baseweb="input"] *, div[data-baseweb="base-input"], div[data-baseweb="base-input"] * {
+    background-color: #FFFFFF !important; background: #FFFFFF !important; border: none !important; box-shadow: none !important; outline: none !important;
+}
+div[data-testid="stTextInput"] input {
+    font-size: 16px !important; font-weight: 400 !important; color: #1D1D1F !important;
+    -webkit-text-fill-color: #1D1D1F !important; caret-color: #1D1D1F !important; padding: 6px 42px 6px 4px !important; opacity: 1 !important;
+}
+div[data-testid="stTextInput"] input::placeholder { color: #8E8E93 !important; -webkit-text-fill-color: #8E8E93 !important; opacity: 1 !important; }
+div[data-testid="InputInstructions"] { display: none !important; }
+div[data-testid="stPopoverBody"], div[data-baseweb="popover"] > div {
+    background-color: #FFFFFF !important; color: #1D1D1F !important; border-radius: 22px !important;
+    border: 1px solid rgba(0,0,0,0.08) !important; box-shadow: 0 12px 40px rgba(0,0,0,0.12) !important; min-width: 350px !important;
+}
+div[data-testid="stPopoverBody"] * { color: #1D1D1F !important; }
+div[data-testid="stPopoverBody"] input {
+    background-color: #F5F5F7 !important; -webkit-text-fill-color: #1D1D1F !important; border-radius: 10px !important; padding: 6px 10px !important;
+}
+button[kind="primary"] {
+    background-color: #1D1D1F !important; color: #FFFFFF !important; border: none !important;
+    border-radius: 14px !important; min-height: 40px !important; padding: 6px 14px !important; box-shadow: none !important;
+}
+button[kind="primary"] *, button[kind="primary"] p, button[kind="primary"] span {
+    color: #FFFFFF !important; -webkit-text-fill-color: #FFFFFF !important; font-weight: 500 !important; font-size: 13.5px !important;
+}
+div[data-testid="stDownloadButton"] button {
+    background-color: #F2F2F7 !important; color: #1D1D1F !important; border: none !important;
+    border-radius: 14px !important; min-height: 40px !important; width: 100% !important; padding: 6px 14px !important;
+    display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important;
+}
+div[data-testid="stDownloadButton"] button * {
+    color: #1D1D1F !important; -webkit-text-fill-color: #1D1D1F !important; font-weight: 500 !important; font-size: 13.5px !important; white-space: nowrap !important;
+}
+div[data-testid="stPopoverBody"] div[data-testid="stButton"] button[kind="secondary"] {
+    background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 !important;
+    width: 28px !important; height: 28px !important; min-height: 28px !important; border-radius: 50% !important;
+    display: flex !important; align-items: center !important; justify-content: center !important;
+}
+div[data-testid="stPopoverBody"] div[data-testid="stButton"] button[kind="secondary"] * { color: #8E8E93 !important; -webkit-text-fill-color: #8E8E93 !important; font-size: 18px !important; line-height: 1 !important; }
+div[data-testid="stPopoverBody"] div[data-testid="stButton"] button[kind="secondary"]:hover { background-color: rgba(255,59,48,0.1) !important; }
+div[data-testid="stPopoverBody"] div[data-testid="stButton"] button[kind="secondary"]:hover * { color: #FF3B30 !important; -webkit-text-fill-color: #FF3B30 !important; }
+div[data-testid="stPopoverBody"] div[data-testid="stHorizontalBlock"] {
+    background: transparent !important; border: none !important; border-bottom: 1px solid #F2F2F7 !important;
+    padding: 7px 0 !important; margin: 0 !important; display: flex !important; flex-direction: row !important;
+    flex-wrap: nowrap !important; align-items: center !important; justify-content: space-between !important; gap: 8px !important;
+}
 div[data-testid="stPopoverBody"] div[data-testid="stHorizontalBlock"] > div:first-child { flex: 1 1 auto !important; min-width: 0 !important; }
 div[data-testid="stPopoverBody"] div[data-testid="stHorizontalBlock"] > div:last-child { flex: 0 0 28px !important; width: 28px !important; display: flex !important; justify-content: flex-end !important; }
 .apple-date-header { display: flex; justify-content: space-between; align-items: baseline; padding: 0 8px; margin-bottom: 10px; }
 .apple-date-main { font-size: 15px; font-weight: 600; color: #1D1D1F; letter-spacing: -0.2px; }
 .apple-date-sub { font-size: 11px; font-weight: 600; color: #86868B; letter-spacing: 0.8px; text-transform: uppercase; }
-.apple-white-card { background: #FFFFFF !important; color: #1D1D1F !important; border-radius: 26px; padding: 26px 24px; box-shadow: 0 6px 24px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.03); margin-bottom: 14px; }
+.apple-white-card {
+    background: #FFFFFF !important; color: #1D1D1F !important; border-radius: 26px; padding: 26px 24px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.03); margin-bottom: 14px;
+}
 .metric-title { font-size: 12px; font-weight: 500; color: #86868B !important; letter-spacing: 0.5px; margin-bottom: 8px; }
 .metric-value { font-size: 40px; font-weight: 700; color: #1D1D1F !important; letter-spacing: -1px; }
-.ai-comment-row { margin-top: 15px; padding-top: 13px; border-top: 1px solid #F2F2F7; font-size: 12.5px; color: #636366; display: flex; align-items: center; gap: 7px; line-height: 1.4; }
-.apple-wish-card { background: rgba(255,255,255,0.78) !important; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-radius: 20px; padding: 14px 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.025); border: 1px solid rgba(0,0,0,0.03); margin-bottom: 16px; }
-:root, html, body, .stApp { color-scheme: light !important; }
-div[data-testid="stPopoverBody"] label, div[data-testid="stPopoverBody"] p, div[data-testid="stPopoverBody"] span { color: #1D1D1F !important; }
-div[data-testid="stNumberInput"] div[data-baseweb="input"], div[data-testid="stNumberInput"] div[data-baseweb="base-input"] { background-color: #F2F2F7 !important; border: 1px solid #E5E5EA !important; border-radius: 12px !important; color: #1D1D1F !important; }
-div[data-testid="stNumberInput"] input { background-color: transparent !important; color: #1D1D1F !important; -webkit-text-fill-color: #1D1D1F !important; }
-div[data-testid="stNumberInput"] button { background-color: #E5E5EA !important; color: #1D1D1F !important; border: none !important; }
-div[data-testid="stNumberInput"] button svg { fill: #1D1D1F !important; }
-div[data-testid="stSelectbox"] div[data-baseweb="select"] > div { background-color: #F2F2F7 !important; border: 1px solid #E5E5EA !important; border-radius: 12px !important; color: #1D1D1F !important; }
-div[data-testid="stSelectbox"] div[data-baseweb="select"] span { color: #1D1D1F !important; -webkit-text-fill-color: #1D1D1F !important; }
-div[data-testid="stSelectbox"] svg { fill: #1D1D1F !important; }
-ul[data-testid="stSelectboxVirtualDropdown"], div[data-baseweb="popover"] ul { background-color: #FFFFFF !important; color: #1D1D1F !important; }
-ul[data-testid="stSelectboxVirtualDropdown"] li { color: #1D1D1F !important; background-color: #FFFFFF !important; }
+.ai-comment-row { margin-top: 15px; padding-top: 13px; border-top: 1px solid #F2F2F7; font-size: 12.5px; color: #63686E; display: flex; align-items: center; gap: 7px; line-height: 1.4; }
+.apple-wish-card {
+    background: rgba(255,255,255,0.78) !important; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-radius: 20px; padding: 14px 20px; box-shadow: 0 4px 16px rgba(0,0,0,0.025); border: 1px solid rgba(0,0,0,0.03); margin-bottom: 16px;
+}
 </style>
-"""
+""",
+    unsafe_allow_html=True,
+)
 st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
 
 def infer_precise_category(text, ai_cat=None):
