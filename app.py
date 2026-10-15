@@ -3,6 +3,8 @@ import json
 import re
 import sqlite3
 from openai import OpenAI
+import pandas as pd
+import plotly.express as px
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -28,7 +30,8 @@ st.markdown(
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif !important;
 }
 #MainMenu, footer, header, [data-testid="stDecoration"], [data-testid="stStatusWidget"],
-[data-testid="stToolbar"], .viewerBadge_container__1QSob, .viewerBadge_link__1S137, .stDeployButton {
+[data-testid="stToolbar"], [data-testid="manage-app-button"], .viewerBadge_container__1QSob,
+.viewerBadge_link__1S137, .stDeployButton, .stAppDeployButton {
     display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important;
 }
 .block-container { padding-top: 1.4rem !important; padding-left: 1rem !important; padding-right: 1rem !important; max-width: 460px !important; }
@@ -80,17 +83,21 @@ button[kind="primary"] *, button[kind="primary"] p, button[kind="primary"] span 
     color: #FFFFFF !important; -webkit-text-fill-color: #FFFFFF !important; font-weight: 500 !important; font-size: 13.5px !important;
 }
 div[data-testid="stDownloadButton"] button {
-    background-color: #F2F2F7 !important; color: #1D1D1F !important; border: none !important; border-radius: 14px !important; min-height: 38px !important; width: 100% !important;
+    background-color: #F2F2F7 !important; color: #1D1D1F !important; border: none !important;
+    border-radius: 14px !important; min-height: 40px !important; width: 100% !important; padding: 6px 14px !important;
+    display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important;
 }
-div[data-testid="stDownloadButton"] button * { color: #1D1D1F !important; -webkit-text-fill-color: #1D1D1F !important; font-weight: 500 !important; font-size: 13px !important; }
-div[data-testid="stPopoverBody"] button[kind="secondary"] {
+div[data-testid="stDownloadButton"] button * {
+    color: #1D1D1F !important; -webkit-text-fill-color: #1D1D1F !important; font-weight: 500 !important; font-size: 13.5px !important; white-space: nowrap !important;
+}
+div[data-testid="stPopoverBody"] div[data-testid="stButton"] button[kind="secondary"] {
     background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 !important;
     width: 28px !important; height: 28px !important; min-height: 28px !important; border-radius: 50% !important;
     display: flex !important; align-items: center !important; justify-content: center !important;
 }
-div[data-testid="stPopoverBody"] button[kind="secondary"] * { color: #8E8E93 !important; -webkit-text-fill-color: #8E8E93 !important; font-size: 18px !important; line-height: 1 !important; }
-div[data-testid="stPopoverBody"] button[kind="secondary"]:hover { background-color: rgba(255,59,48,0.1) !important; }
-div[data-testid="stPopoverBody"] button[kind="secondary"]:hover * { color: #FF3B30 !important; -webkit-text-fill-color: #FF3B30 !important; }
+div[data-testid="stPopoverBody"] div[data-testid="stButton"] button[kind="secondary"] * { color: #8E8E93 !important; -webkit-text-fill-color: #8E8E93 !important; font-size: 18px !important; line-height: 1 !important; }
+div[data-testid="stPopoverBody"] div[data-testid="stButton"] button[kind="secondary"]:hover { background-color: rgba(255,59,48,0.1) !important; }
+div[data-testid="stPopoverBody"] div[data-testid="stButton"] button[kind="secondary"]:hover * { color: #FF3B30 !important; -webkit-text-fill-color: #FF3B30 !important; }
 div[data-testid="stPopoverBody"] div[data-testid="stHorizontalBlock"] {
     background: transparent !important; border: none !important; border-bottom: 1px solid #F2F2F7 !important;
     padding: 7px 0 !important; margin: 0 !important; display: flex !important; flex-direction: row !important;
@@ -123,102 +130,41 @@ def infer_precise_category(text, ai_cat=None):
     if any(
         k in t
         for k in [
-            "打车",
-            "滴滴",
-            "地铁",
-            "公交",
-            "高铁",
-            "火车",
-            "机票",
-            "车费",
-            "加油",
-            "停车",
-            "骑车",
-            "单车",
-            "出行",
-            "交通",
+            "打车", "滴滴", "地铁", "公交", "高铁", "火车", "机票",
+            "车费", "加油", "停车", "骑车", "单车", "出行", "交通",
         ]
     ):
         return "交通"
     if any(
         k in t
         for k in [
-            "水",
-            "饭",
-            "餐",
-            "面",
-            "粉",
-            "火锅",
-            "咖啡",
-            "奶茶",
-            "可乐",
-            "饮料",
-            "吃",
-            "早",
-            "午",
-            "晚",
-            "夜宵",
-            "烧烤",
-            "水果",
-            "零食",
-            "面包",
-            "蛋糕",
-            "菜",
-            "外卖",
-            "食堂",
+            "水", "饭", "餐", "面", "粉", "火锅", "咖啡", "奶茶",
+            "可乐", "饮料", "吃", "早", "午", "晚", "夜宵", "烧烤",
+            "水果", "零食", "面包", "蛋糕", "菜", "外卖", "食堂",
         ]
     ):
         return "餐饮"
     if any(
         k in t
         for k in [
-            "显示器",
-            "电脑",
-            "手机",
-            "键盘",
-            "鼠标",
-            "耳机",
-            "iPad",
-            "Mac",
-            "充电",
-            "数码",
-            "相机",
-            "硬盘",
+            "显示器", "电脑", "手机", "键盘", "鼠标", "耳机",
+            "iPad", "Mac", "充电", "数码", "相机", "硬盘",
         ]
     ):
         return "数码"
     if any(
         k in t
         for k in [
-            "电影",
-            "游戏",
-            "门票",
-            "KTV",
-            "演出",
-            "展览",
-            "会员",
-            "网吧",
-            "桌游",
-            "娱乐",
-            "旅游",
+            "电影", "游戏", "门票", "KTV", "演出", "展览",
+            "会员", "网吧", "桌游", "娱乐", "旅游",
         ]
     ):
         return "娱乐"
     if any(
         k in t
         for k in [
-            "房租",
-            "水电",
-            "电费",
-            "水费",
-            "燃气",
-            "物业",
-            "纸巾",
-            "洗衣",
-            "日用",
-            "居家",
-            "话费",
-            "网费",
+            "房租", "水电", "电费", "水费", "燃气", "物业",
+            "纸巾", "洗衣", "日用", "居家", "话费", "网费",
         ]
     ):
         return "居家"
@@ -227,26 +173,14 @@ def infer_precise_category(text, ai_cat=None):
     if any(
         k in t
         for k in [
-            "买",
-            "购",
-            "衣",
-            "裤",
-            "鞋",
-            "包",
-            "淘宝",
-            "京东",
-            "拼多多",
-            "超市",
-            "商场",
-            "护肤",
-            "洗发",
+            "买", "购", "衣", "裤", "鞋", "包", "淘宝",
+            "京东", "拼多多", "超市", "商场", "护肤", "洗发",
         ]
     ):
         return "购物"
     return (
         ai_cat
-        if ai_cat
-        in {"餐饮", "交通", "购物", "娱乐", "居家", "数码", "医疗"}
+        if ai_cat in {"餐饮", "交通", "购物", "娱乐", "居家", "数码", "医疗"}
         else "其他"
     )
 
@@ -289,6 +223,7 @@ def render_category_badge(cat, pool):
     return html
 
 
+@st.cache_resource
 def init_db():
     conn = sqlite3.connect("ledger.db", check_same_thread=False)
     c = conn.cursor()
@@ -611,9 +546,6 @@ with col_plus:
             if not cat_rows:
                 st.info("本月暂无消费记录，快记一笔来看看分析图吧！")
             else:
-                import pandas as pd
-                import plotly.express as px
-
                 df_cat = pd.DataFrame(cat_rows, columns=["类别", "金额"])
                 total_all_pools = sum(r[1] for r in cat_rows)
                 fig = px.pie(
@@ -905,7 +837,24 @@ components.html(
             }
             syncVisibility();
         }
-        mountGeminiArrow(); setInterval(mountGeminiArrow, 250);
+        function killBadges() {
+            const selectors = [
+                '.viewerBadge_container__1QSob',
+                '.viewerBadge_link__1S137',
+                '[data-testid="stStatusWidget"]',
+                '[data-testid="stToolbar"]',
+                '[data-testid="manage-app-button"]',
+                'a[href*="streamlit.io/cloud"]'
+            ];
+            [document, doc].forEach(d => {
+                if (!d) return;
+                selectors.forEach(sel => {
+                    try { d.querySelectorAll(sel).forEach(el => el.remove()); } catch(e) {}
+                });
+            });
+        }
+        mountGeminiArrow(); killBadges();
+        setInterval(() => { mountGeminiArrow(); killBadges(); }, 250);
     })();
     </script>
     """,
