@@ -32,6 +32,13 @@ st.markdown(
 
 st.markdown(
     """
+<style>
+/* 隐藏 Streamlit 手机端标签页两端的黑色滚动阴影 */
+[data-testid="stTabs"] [data-baseweb="tab-list"]::before,
+[data-testid="stTabs"] [data-baseweb="tab-list"]::after {
+    display: none !important;
+}
+
 </style>
 :root, html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
     color-scheme: light !important; background-color: #F5F5F7 !important; color: #1D1D1F !important;
@@ -922,3 +929,6 @@ components.html(
     """,
     height=0,
 )
+
+
+
