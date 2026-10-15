@@ -769,7 +769,7 @@ with col_plus:
 with col_input_area:
     st.text_input(
         "记一笔",
-        placeholder="记一笔...",
+        placeholder="记一笔账吧...",
         label_visibility="collapsed",
         key="capsule_input_key",
         on_change=handle_capsule_submit,
