@@ -31,8 +31,9 @@ div[data-testid="stHorizontalBlock"] { align-items: center !important; }
 div[data-testid="stPopover"] > div > button { border-radius: 50% !important; width: 40px !important; height: 40px !important; min-height: 40px !important; padding: 0 !important; background: #FFFFFF !important; border: 1px solid rgba(0,0,0,0.06) !important; box-shadow: 0 2px 10px rgba(0,0,0,0.03) !important; color: #1D1D1F !important; display: flex !important; align-items: center !important; justify-content: center !important; }
 div[data-testid="stPopover"] > div > button span { font-size: 18px !important; font-weight: 400 !important; line-height: 1 !important; }
 div[data-testid="stPopover"] > div > button svg { display: none !important; }
-div[data-testid="stTextInput"] input { border-radius: 22px !important; background: #FFFFFF !important; border: 1px solid rgba(0,0,0,0.06) !important; padding: 10px 18px !important; font-size: 14.5px !important; color: #1D1D1F !important; box-shadow: 0 2px 10px rgba(0,0,0,0.03) !important; height: 42px !important; }
-div[data-testid="stTextInput"] input:focus { border-color: #1D1D1F !important; box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important; }
+div[data-testid="stTextInput"] div[data-baseweb="input"], div[data-testid="stTextInput"] div[data-baseweb="base-input"] { background: transparent !important; border: none !important; box-shadow: none !important; border-radius: 22px !important; padding: 0 !important; }
+div[data-testid="stTextInput"] input { border-radius: 22px !important; background: #FFFFFF !important; border: 1px solid rgba(0,0,0,0.06) !important; padding: 10px 18px !important; font-size: 14.5px !important; color: #1D1D1F !important; box-shadow: 0 2px 10px rgba(0,0,0,0.03) !important; height: 42px !important; outline: none !important; }
+div[data-testid="stTextInput"] input:focus { border-color: rgba(0,0,0,0.15) !important; box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important; outline: none !important; }
 div[data-testid="stPopoverBody"] { border-radius: 22px !important; border: 1px solid rgba(0,0,0,0.06) !important; box-shadow: 0 12px 36px rgba(0,0,0,0.1) !important; padding: 14px 16px !important; width: min(92vw, 420px) !important; max-width: 92vw !important; background: #FFFFFF !important; }
 div[data-testid="stPopoverBody"] div[data-testid="stButton"] button[kind="secondary"] { border: none !important; background: transparent !important; color: #86868B !important; padding: 2px 6px !important; min-height: 26px !important; height: 26px !important; border-radius: 8px !important; box-shadow: none !important; }
 div[data-testid="stPopoverBody"] div[data-testid="stButton"] button[kind="secondary"]:hover { background-color: rgba(255,59,48,0.1) !important; color: #FF3B30 !important; }
@@ -471,7 +472,7 @@ with col_input:
 
     st.text_input(
         "快速记账",
-        placeholder="记一笔账吧（支持连记：买水5元吃饭15元）...",
+        placeholder="记一笔账吧...",
         key="quick_input_box",
         on_change=on_Quick_Submit,
         label_visibility="collapsed",
