@@ -774,13 +774,13 @@ with tab_guide:
 
     st.markdown("**1. 极简账本用户使用手册**")
     st.markdown(
-        '<a href="你的账本使用手册网址(如Notion/飞书/GitHub链接)" target="_blank" style="display:block; text-align:center; background:#F2F2F7; color:#1D1D1F; padding:9px 14px; border-radius:12px; text-decoration:none; font-weight:500; font-size:13px; margin-bottom:14px;">📖 查看账本使用手册 →</a>',
+        '<a href="https://www.icloud.com.cn/notes/07a2hhOpJC4qIQonid2AO-ezA" target="_blank" style="display:block; text-align:center; background:#F2F2F7; color:#1D1D1F; padding:9px 14px; border-radius:12px; text-decoration:none; font-weight:500; font-size:13px; margin-bottom:14px;">📖 查看账本使用手册 →</a>',
         unsafe_allow_html=True
     )
 
     st.markdown("**2. iOS 快捷指令配置教程**")
     st.markdown(
-        '<a href="你的快捷指令教程网址(如Notion/飞书/GitHub链接)" target="_blank" style="display:block; text-align:center; background:#F2F2F7; color:#1D1D1F; padding:9px 14px; border-radius:12px; text-decoration:none; font-weight:500; font-size:13px;">⚡ 查看敲背面快捷指令教程 →</a>',
+        '<a href="https://www.icloud.com.cn/notes/01885mcBVlOacJRXopdqq1PFg" target="_blank" style="display:block; text-align:center; background:#F2F2F7; color:#1D1D1F; padding:9px 14px; border-radius:12px; text-decoration:none; font-weight:500; font-size:13px;">⚡ 查看敲背面快捷指令教程 →</a>',
         unsafe_allow_html=True
     )
 
