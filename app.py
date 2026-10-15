@@ -486,7 +486,7 @@ if st.session_state.get("last_toast"):
 now_cn = get_china_now()
 current_month_str = now_cn.strftime("%Y-%m")
 weekdays_cn = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
-formatted_date_cn = f"{now_cn.month}月{now_cn.day}日 {weekdays_cn[now_cn.weekday()]}"
+formatted_date_cn = f"今天是{now_cn.month}月{now_cn.day}日 {weekdays_cn[now_cn.weekday()]}"
 formatted_month_en = now_cn.strftime("%b %Y").upper()
 
 c = conn.cursor()
