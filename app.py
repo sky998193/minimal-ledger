@@ -430,7 +430,7 @@ def parse_with_deepseek(text):
         return [(t, a, cat, iv)], cm
 
 
-        def add_transaction(user_text):
+def add_transaction(user_text):
     user_text = str(user_text).strip()
     if user_text:
         items_list, comment = parse_with_deepseek(user_text)
