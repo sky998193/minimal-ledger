@@ -517,7 +517,7 @@ col_plus, col_input_area = st.columns([1.1, 8.9])
 with col_plus:
     with st.popover(" "):
         tab_ledger, tab_analytics, tab_settings, tab_guide = st.tabs(
-    ["🛡️ 小金库与流水", "📊 消费分析", "⚙️ 参数设置", "📖 使用说明"]
+    ["🛡️ 小金库流水", "📊 消费分析", "⚙️ 参数设置", "📖 使用说明"]
 )
         with tab_ledger:
             st.markdown(f"#### 🛡️ 隐藏小金库: ¥{current_vault:.2f}")
