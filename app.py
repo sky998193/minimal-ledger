@@ -123,7 +123,7 @@ div[data-testid="stPopoverBody"] div[data-testid="stHorizontalBlock"] > div:last
 """,
     unsafe_allow_html=True,
 )
-st.markdown(GLOBAL_CSS, unsafe_allow_html=True)
+
 
 def infer_precise_category(text, ai_cat=None):
     t = str(text)
