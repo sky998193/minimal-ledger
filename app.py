@@ -519,7 +519,7 @@ with col_plus:
         tab_ledger, tab_analytics, tab_settings, tab_guide = st.tabs(
     ["🛡️ 小金库流水", "📊 消费分析", "⚙️ 参数设置", "📖 使用说明"]
 )
-       with tab_ledger:
+     with tab_ledger:
             st.markdown(
                 f"""
                 <div style="background:#F5F5F7; border-radius:16px; padding:14px 16px; margin-bottom:12px;">
