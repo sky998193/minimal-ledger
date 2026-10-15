@@ -757,6 +757,7 @@ with col_plus:
                 file_name=f"ledger_{CURRENT_USER}.json",
                 mime="application/json",
                 use_container_width=True,
+                type="primary",
             )
             uploaded_file = st.file_uploader(
                 "📥 恢复备份", type=["json"], label_visibility="collapsed"
