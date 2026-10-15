@@ -6,6 +6,14 @@ from openai import OpenAI
 import streamlit as st
 import streamlit.components.v1 as components
 
+/* 彻底隐藏右下角的 Streamlit 官方浮动徽标与红白广告 */
+[data-testid="stDecoration"], footer, #MainMenu, .viewerBadge_container__1QSob {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+}
+
+
 # 0. 严格锁定中国标准时间 (UTC+8 公历日历)
 CHINA_TZ = timezone(timedelta(hours=8))
 
