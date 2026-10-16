@@ -785,7 +785,7 @@ with tab_guide:
 
 with col_input_area:
     st.text_input(
-        "记一笔",
+        "记一笔账吧...",
         placeholder="记一笔账吧...",
         label_visibility="collapsed",
         key="capsule_input_key",
