@@ -127,6 +127,21 @@ div[data-testid="stPopoverBody"] div[data-testid="stHorizontalBlock"] > div:last
 
 def infer_precise_category(text, ai_cat=None):
     t = str(text)
+    try:
+        user_Rules = json.loads(get_user_config("custom_cat_rules", "{}"))
+        for kw, learned_cat in user_Rules.items():
+            if kw and kw in t:
+                return learned_cat
+    except Exception:
+        pass
+    if any(
+        k in t
+        for k in [
+            "买", "购", "衣", "裤", "鞋", "包", "淘宝", "京东", "拼多多",
+            "超市", "商场", "护肤", "洗发", "面膜", "面霜", "化妆", "口红", "防晒",
+        ]
+    ):
+        return "购物"
     if any(
         k in t
         for k in [
@@ -138,7 +153,7 @@ def infer_precise_category(text, ai_cat=None):
     if any(
         k in t
         for k in [
-            "水", "饭", "餐", "面", "粉", "火锅", "咖啡", "奶茶",
+            "水", "饭", "餐", "面条", "方便面", "拉面", "粉", "火锅", "咖啡", "奶茶",
             "可乐", "饮料", "吃", "早", "午", "晚", "夜宵", "烧烤",
             "水果", "零食", "面包", "蛋糕", "菜", "外卖", "食堂",
         ]
@@ -170,14 +185,6 @@ def infer_precise_category(text, ai_cat=None):
         return "居家"
     if any(k in t for k in ["药", "医院", "看病", "挂号", "体检", "牙", "医疗"]):
         return "医疗"
-    if any(
-        k in t
-        for k in [
-            "买", "购", "衣", "裤", "鞋", "包", "淘宝",
-            "京东", "拼多多", "超市", "商场", "护肤", "洗发",
-        ]
-    ):
-        return "购物"
     return (
         ai_cat
         if ai_cat in {"餐饮", "交通", "购物", "娱乐", "居家", "数码", "医疗"}
@@ -223,8 +230,57 @@ def render_category_badge(cat, pool):
     return html
 
 
+import psycopg2
+
+class PgCursorWrapper:
+    def __init__(self, cursor):
+        self._cursor = cursor
+    def execute(self, sql, params=None):
+        sql = sql.replace("?", "%s")
+        sql = re.sub(
+            r"INSERT\s+OR\s+REPLACE\s+INTO\s+config\s*\(\s*key\s*,\s*value\s*\)\s*VALUES\s*\(\s*%s\s*,\s*%s\s*\)",
+            "INSERT INTO config (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+            sql, flags=re.IGNORECASE
+        )
+        return self._cursor.execute(sql, params) if params is not None else self._cursor.execute(sql)
+    def fetchone(self):
+        return self._cursor.fetchone()
+    def fetchall(self):
+        return self._cursor.fetchall()
+
+class PgConnWrapper:
+    def __init__(self, dsn):
+        self.dsn = dsn
+        self._conn = psycopg2.connect(dsn)
+    def _ensure(self):
+        if self._conn.closed != 0:
+            self._conn = psycopg2.connect(self.dsn)
+        else:
+            try:
+                with self._conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+            except Exception:
+                self._conn = psycopg2.connect(self.dsn)
+    def cursor(self):
+        self._ensure()
+        return PgCursorWrapper(self._conn.cursor())
+    def commit(self):
+        self._conn.commit()
+
 @st.cache_resource
 def init_db():
+    db_url = st.secrets.get("DATABASE_URL", "")
+    if db_url:
+        conn = PgConnWrapper(db_url)
+        c = conn.cursor()
+        c.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
+        c.execute(
+            "CREATE TABLE IF NOT EXISTS transactions (id SERIAL PRIMARY KEY,"
+            " date TEXT, title TEXT, amount REAL, pool TEXT, note TEXT,"
+            " category TEXT DEFAULT '其他', user_id TEXT DEFAULT 'default')"
+        )
+        conn.commit()
+        return conn
     conn = sqlite3.connect("ledger.db", check_same_thread=False)
     c = conn.cursor()
     c.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
@@ -233,14 +289,6 @@ def init_db():
         " AUTOINCREMENT, date TEXT, title TEXT, amount REAL, pool TEXT, note TEXT,"
         " category TEXT DEFAULT '其他', user_id TEXT DEFAULT 'default')"
     )
-    for col_sql in [
-        "ALTER TABLE transactions ADD COLUMN category TEXT DEFAULT '其他'",
-        "ALTER TABLE transactions ADD COLUMN user_id TEXT DEFAULT 'default'",
-    ]:
-        try:
-            c.execute(col_sql)
-        except Exception:
-            pass
     conn.commit()
     return conn
 
@@ -536,28 +584,55 @@ with col_plus:
             rows = c.fetchall()
             if not rows:
                 st.caption("暂无记录")
+            valid_cats = ["餐饮", "交通", "购物", "娱乐", "居家", "数码", "医疗", "其他"]
             for tx_id, tx_date, tx_title, tx_amount, tx_pool, tx_cat in rows:
-                badge_html = render_category_badge(tx_cat or "其他", tx_pool)
-                r_col1, r_col2 = st.columns([8.8, 1.2])
-                with r_col1:
-                    st.markdown(
-                        "<div style='font-size:13.5px; color:#1D1D1F; white-space:nowrap;"
-                        " overflow:hidden; text-overflow:ellipsis; display:flex;"
-                        f" align-items:center; gap:6px;'><span style='color:#8E8E93; font-size:12px;'>{tx_date[5:]}</span>"
-                        f"<b>{tx_title}</b><span>¥{tx_amount:.1f}</span>{badge_html}</div>",
-                        unsafe_allow_html=True,
-                    )
-                with r_col2:
-                    if st.button("－", key=f"del_{tx_id}", type="secondary"):
-                        c.execute(
-                            "DELETE FROM transactions WHERE id=? AND user_id=?",
-                            (tx_id, CURRENT_USER),
+                cur_cat = tx_cat if tx_cat in valid_cats else "其他"
+                badge_html = render_category_badge(cur_cat, tx_pool)
+                edit_key = f"edit_cat_{tx_id}"
+                if st.session_state.get(edit_key, False):
+                    e_col1, e_col2, e_col3 = st.columns([4.5, 3.5, 2.0])
+                    with e_col1:
+                        st.markdown(f"<div style='font-size:13px; padding-top:6px;'><b>{tx_title}</b></div>", unsafe_allow_html=True)
+                    with e_col2:
+                        new_cat = st.selectbox("分类", valid_cats, index=valid_cats.index(cur_cat), key=f"sel_{tx_id}", label_visibility="collapsed")
+                    with e_col3:
+                        if st.button("✓", key=f"save_{tx_id}", type="primary", use_container_width=True):
+                            c.execute("UPDATE transactions SET category=? WHERE id=? AND user_id=?", (new_cat, tx_id, CURRENT_USER))
+                            conn.commit()
+                            try:
+                                rules = json.loads(get_user_config("custom_cat_rules", "{}"))
+                            except Exception:
+                                rules = {}
+                            rules[tx_title.strip()] = new_cat
+                            set_user_config("custom_cat_rules", json.dumps(rules, ensure_ascii=False))
+                            st.session_state[edit_key] = False
+                            st.session_state.last_toast = f"✅ 已改为 [{new_cat}]，AI 已记住「{tx_title}」的分类"
+                            st.rerun()
+                else:
+                    r_col1, r_col2, r_col3 = st.columns([7.4, 1.4, 1.2])
+                    with r_col1:
+                        st.markdown(
+                            "<div style='font-size:13.5px; color:#1D1D1F; white-space:nowrap;"
+                            " overflow:hidden; text-overflow:ellipsis; display:flex;"
+                            f" align-items:center; gap:6px;'><span style='color:#8E8E93; font-size:12px;'>{tx_date[5:]}</span>"
+                            f"<b>{tx_title}</b><span>¥{tx_amount:.1f}</span>{badge_html}</div>",
+                            unsafe_allow_html=True,
                         )
-                        conn.commit()
-                        st.session_state.last_toast = (
-                            f"🗑️ 已撤销：{tx_title} (¥{tx_amount:.1f} 已退回)"
-                        )
-                        st.rerun()
+                    with r_col2:
+                        if st.button("🏷️", key=f"edit_btn_{tx_id}", type="secondary"):
+                            st.session_state[edit_key] = True
+                            st.rerun()
+                    with r_col3:
+                        if st.button("－", key=f"del_{tx_id}", type="secondary"):
+                            c.execute(
+                                "DELETE FROM transactions WHERE id=? AND user_id=?",
+                                (tx_id, CURRENT_USER),
+                            )
+                            conn.commit()
+                            st.session_state.last_toast = (
+                                f"🗑️ 已撤销：{tx_title} (¥{tx_amount:.1f} 已退回)"
+                            )
+                            st.rerun()
             st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
             if st.button(
                 "🗑️ 清空我的账单数据", type="primary", use_container_width=True
@@ -759,7 +834,7 @@ with col_plus:
                 st.query_params.clear()
                 st.rerun()
 
-with tab_guide:
+        with tab_guide:
             st.markdown("#### 📖 帮助与文档手册")
             st.caption("查看图文配置教程与使用指南")
             st.markdown("---")
@@ -785,7 +860,7 @@ with tab_guide:
 
 with col_input_area:
     st.text_input(
-        "记一笔账吧...",
+        "记一笔",
         placeholder="记一笔账吧...",
         label_visibility="collapsed",
         key="capsule_input_key",
