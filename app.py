@@ -865,7 +865,7 @@ components.html(
     (function() {
         const doc = window.parent.document;
         function mountGeminiArrow() {
-            const input = doc.querySelector('input[placeholder="记一笔..."]');
+            const input = doc.querySelector('input[placeholder="记一笔账吧..."]');
             if (!input) return;
             const container = input.parentElement;
             container.style.position = 'relative'; container.style.display = 'flex'; container.style.alignItems = 'center';
